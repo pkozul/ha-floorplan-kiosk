@@ -1025,6 +1025,7 @@
     },
 
     debug(message) {
+      return;
       let debug = Polymer.dom(this.$.debug).node;
       $(debug).find('ul').append(`<li>${message}</li>`)
       $(debug).css('display', 'block');
