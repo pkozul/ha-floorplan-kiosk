@@ -1,5 +1,5 @@
 # ha-floorplan-kiosk
-1) Update to the latest version of Floorplan w(with support for Fully Kiosk):
+1) Update to the latest version of Floorplan (with support for Fully Kiosk):
 
 ```
 https://raw.githubusercontent.com/pkozul/ha-floorplan-kiosk/master/floorplan.yaml
