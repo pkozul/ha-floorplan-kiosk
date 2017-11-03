@@ -167,6 +167,22 @@
         }
       });
 
+      this.hass.connection.subscribeEvents((event) => {
+        if ((event.data.domain === 'tts') && (event.data.service === 'google_say')) {
+          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id)) {
+            this.debug('Playing TTS using Fully Kiosk');
+            this.playTextToSpeech(event.data.service_data.message);
+          }
+        }
+        else if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
+          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id)) {
+            this.debug('Playing TTS using Google Say (mp3 file from Home Assistant)');
+            this.playMedia(event.data.service_data.media_content_id);
+          }
+        }
+      },
+        'call_service');
+
       // Build a list of promises that will run 'in parallel' (i.e. load asynchronously)
       var promises = [];
 
@@ -213,7 +229,9 @@
 
     getFully() {
       if (typeof fully != "undefined") {
-        let device = this.config.devices.find(x => x.address == fully.getMacAddress());
+        let macAddress = fully.getMacAddress().toLowerCase();
+
+        let device = this.config.devices.find(x => x.address.toLowerCase() == macAddress);
         if (!device)
           return;
 
@@ -336,6 +354,10 @@
           this.sendKioskStateTimer = setTimeout(() => { this.sendKioskState(false); }, timeout);
         }.bind(this)
       });
+    },
+
+    playTextToSpeech(text) {
+      fully.textToSpeech(text);
     },
 
     playMedia(mediaUrl) {
