@@ -177,12 +177,12 @@
       }
 
       if (this.isOptionEnabled(this.config.pan_zoom)) {
-        let promise = this.loadScript('local/custom_ui/floorplan/lib/svg-pan-zoom.min.js');
+        let promise = this.loadScript('/local/custom_ui/floorplan/lib/svg-pan-zoom.min.js');
         promises.push(promise);
       }
 
       if (this.isOptionEnabled(this.config.fully_kiosk)) {
-        let promise = this.loadScript('local/custom_ui/floorplan/lib/fully-kiosk.js');
+        let promise = this.loadScript('/local/custom_ui/floorplan/lib/fully-kiosk.js');
         promises.push(promise);
       }
 
