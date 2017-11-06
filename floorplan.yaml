@@ -3,9 +3,11 @@
       stylesheet: /local/custom_ui/floorplan/floorplan.css
 
       warnings:
+      debug:
 #      pan_zoom:
       hide_app_toolbar:
       date_format: DD-MMM-YYYY
+      fully_kiosk:
 
       last_motion_entity: sensor.template_last_motion
       last_motion_class: last-motion
