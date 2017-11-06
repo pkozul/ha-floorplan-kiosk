@@ -1,6 +1,6 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.8
+  Version: 1.0.7.5
   https://github.com/pkozul/ha-floorplan
 -->
 
@@ -135,8 +135,6 @@
     onAttached() {
       window.onerror = this.handleWindowError.bind(this);
 
-      this.getFully();
-
       if (!this.config.groups) {
         this.isLoading = false;
         this.warn(`Cannot find 'groups' in floorplan configuration`);
@@ -167,22 +165,6 @@
         }
       });
 
-      this.hass.connection.subscribeEvents((event) => {
-        if ((event.data.domain === 'tts') && (event.data.service === 'google_say')) {
-          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id)) {
-            this.debug('Playing TTS using Fully Kiosk');
-            this.playTextToSpeech(event.data.service_data.message);
-          }
-        }
-        else if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
-          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id)) {
-            this.debug('Playing TTS using Google Say (mp3 file from Home Assistant)');
-            this.playMedia(event.data.service_data.media_content_id);
-          }
-        }
-      },
-        'call_service');
-
       // Build a list of promises that will run 'in parallel' (i.e. load asynchronously)
       var promises = [];
 
@@ -199,6 +181,11 @@
         promises.push(promise);
       }
 
+      if (this.isOptionEnabled(this.config.fully_kiosk)) {
+        let promise = this.loadScript('local/custom_ui/floorplan/lib/fully-kiosk.js');
+        promises.push(promise);
+      }
+
       return Promise.all(promises) // wait for all promises to complete
         .then(() => {
           this.isLoading = false;
@@ -207,6 +194,11 @@
 
           if (this.config.groups.find(entityGroup => entityGroup.state_transitions)) {
             setInterval(this.updateStateTransitions.bind(this), 100);
+          }
+
+          if (this.isOptionEnabled(this.config.fully_kiosk)) {
+            this.fullyKiosk = new FullyKiosk(this);
+            this.fullyKiosk.init();
           }
 
           // Enable pan / zoom if enabled in config
@@ -225,144 +217,6 @@
           this.isLoading = false;
           this.error(err);
         });
-    },
-
-    getFully() {
-      if (typeof fully != "undefined") {
-        let macAddress = fully.getMacAddress().toLowerCase();
-
-        let device = this.config.devices.find(x => x.address.toLowerCase() == macAddress);
-        if (!device)
-          return;
-
-        let binarySensorEntityId = device.entities.find(x => x.startsWith('binary_sensor.'));
-        let mediaPlayerEntityId = device.entities.find(x => x.startsWith('media_player.'));
-
-        this.kioskInfo = {
-          binarySensorEntityId: binarySensorEntityId,
-          mediaPlayerEntityId: mediaPlayerEntityId,
-          startUrl: fully.getStartUrl(),
-          currentLocale: fully.getCurrentLocale(),
-          ipAddressv4: fully.getIp4Address(),
-          ipAddressv6: fully.getIp6Address(),
-          macAddress: fully.getMacAddress(),
-          wifiSSID: fully.getWifiSsid(),
-          serialNumber: fully.getSerialNumber(),
-          deviceId: fully.getDeviceId(),
-          batteryLevel: fully.getBatteryLevel(),
-          screenBrightness: fully.getScreenBrightness(),
-          isScreenOn: fully.getScreenOn(),
-          motionState: 'off',
-        };
-
-        window['onFullyEvent'] = (e) => { window.dispatchEvent(new Event(e)); }
-
-        window.addEventListener('fully.screenOn', this.onFullyScreenOn.bind(this));
-        window.addEventListener('fully.screenOff', this.onFullyScreenOff.bind(this));
-        window.addEventListener('fully.networkDisconnect', this.onFullyNetworkDisconnect.bind(this));
-        window.addEventListener('fully.networkReconnect', this.onFullyNetworkReconnect.bind(this));
-        window.addEventListener('fully.internetDisconnect', this.onFullyInternetDisconnect.bind(this));
-        window.addEventListener('fully.internetReconnect', this.onFullyInternetReconnect.bind(this));
-        window.addEventListener('fully.unplugged', this.onFullyUnplugged.bind(this));
-        window.addEventListener('fully.pluggedAC', this.onFullyPluggedAC.bind(this));
-        window.addEventListener('fully.pluggedUSB', this.onFullyPluggedUSB.bind(this));
-        window.addEventListener('fully.onMotion', this.onFullyMotion.bind(this));
-
-        fully.bind('screenOn', 'onFullyEvent("fully.screenOn");')
-        fully.bind('screenOff', 'onFullyEvent("fully.screenOff");')
-        fully.bind('networkDisconnect', 'onFullyEvent("fully.networkDisconnect");')
-        fully.bind('networkReconnect', 'onFullyEvent("fully.networkReconnect");')
-        fully.bind('internetDisconnect', 'onFullyEvent("fully.internetDisconnect");')
-        fully.bind('internetReconnect', 'onFullyEvent("fully.internetReconnect");')
-        fully.bind('unplugged', 'onFullyEvent("fully.unplugged");')
-        fully.bind('pluggedAC', 'onFullyEvent("fully.pluggedAC");')
-        fully.bind('pluggedUSB', 'onFullyEvent("fully.pluggedUSB");')
-        fully.bind('onMotion', 'onFullyEvent("fully.onMotion");') // Max. one per second
-
-        this.sendKioskState(this.kioskInfo.motionState);
-      }
-      else {
-        //    this.debug( "Fully Website Integration Object not found" );
-      }
-    },
-
-    onFullyScreenOn() {
-      this.debug('Screen turned on');
-    },
-
-    onFullyScreenOff() {
-      this.debug('Screen turned off');
-    },
-
-    onFullyNetworkDisconnect() {
-      this.debug('Network disconnected');
-    },
-
-    onFullyNetworkReconnect() {
-      this.debug('Network reconnected');
-    },
-
-    onFullyInternetDisconnect() {
-      this.debug('Internet disconnected');
-    },
-
-    onFullyInternetReconnect() {
-      this.debug('Internet reconnected');
-    },
-
-    onFullyUnplugged() {
-      this.debug('Device unplugged');
-    },
-
-    onFullyPluggedAC() {
-      this.debug('Deviced plugged into AC power');
-    },
-
-    onFullyPluggedUSB() {
-      this.debug('Device plugged into USB');
-    },
-
-    onFullyMotion() {
-      this.sendKioskState(true);
-    },
-
-    sendKioskState(isOn) {
-      clearTimeout(this.sendKioskStateTimer);
-
-      if (!this.kioskInfo.binarySensorEntityId)
-        return;
-
-      this.kioskInfo.motionState = isOn ? 'on' : 'off';
-      let timeout = isOn ? 5000 : 10000;
-
-      let authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
-
-      let payload = { "state": this.kioskInfo.motionState, "mac_address": fully.macAddress };
-
-      jQuery.ajax({
-        type: 'POST',
-        url: `/api/states/${this.kioskInfo.binarySensorEntityId}`,
-        headers: { "X-HA-Access": authToken },
-        data: JSON.stringify(payload),
-        success: function (result) {
-          //      this.debug(`Sent state: ${this.kioskInfo.motionState}`);
-          //      this.debug(`Setting timeout: ${timeout}`);
-          this.sendKioskStateTimer = setTimeout(() => { this.sendKioskState(false); }, timeout);
-        }.bind(this),
-        error: function (err) {
-          //      this.error('Error sending state');
-          this.sendKioskStateTimer = setTimeout(() => { this.sendKioskState(false); }, timeout);
-        }.bind(this)
-      });
-    },
-
-    playTextToSpeech(text) {
-      fully.textToSpeech(text);
-    },
-
-    playMedia(mediaUrl) {
-      let audio = new Audio(mediaUrl);
-      audio.play();
     },
 
     handleWindowError(msg, url, lineNo, columnNo, error) {
@@ -388,10 +242,10 @@
         let script = document.createElement('script');
         script.src = scriptUrl;
         script.onload = () => {
-          resolve(true);
+          return resolve(true);
         };
         script.onerror = (err) => {
-          reject(new URIError(`Cannot load script '${err.target.src}'`));
+          return reject(new URIError(`Cannot load script '${err.target.src}'`));
         };
 
         Polymer.dom(this.root).appendChild(script);
@@ -401,20 +255,20 @@
     addExternalCss(stylesheetUrl) {
       return new Promise((resolve, reject) => {
         if (!this.config.stylesheet) {
-          resolve(true);
+          return resolve(true);
         }
 
-        this.loadStyleSheet(`${stylesheetUrl}?_=${(new Date().getTime())}`, function (success, link) {
+        this.loadStyleSheet(`${stylesheetUrl}?${this.getCacheBuster()}`, function (success, link) {
           if (success) {
             Polymer.dom(this.instance.root).appendChild(link);
             let styleSheet = link['sheet'];
             this.instance.cssRules = this.instance.getArray(styleSheet.cssRules);
-            this.resolve(true);
+            return this.resolve(true);
           }
           else {
-            reject(new URIError("Cannot load stylesheet"));
+            return this.reject(new URIError(`Cannot load stylesheet: ${stylesheetUrl}`));
           }
-        }.bind({ instance: this, resolve: resolve }));
+        }.bind({ instance: this, resolve: resolve, reject: reject }));
       });
     },
 
@@ -437,10 +291,10 @@
     loadFloorPlan() {
       return new Promise((resolve, reject) => {
         jQuery.ajax({
-          url: `${this.config.image}?_=${(new Date().getTime())}`,
+          url: `${this.config.image}?${this.getCacheBuster()}`,
           cache: false,
           error: function (err) {
-            reject(new URIError(`${this.config.image}: ${err.responseText}`));
+            return reject(new URIError(`${this.config.image}: ${err.responseText}`));
           }.bind(this),
           success: (result) => {
             let svg = $(result).find('svg')[0];
@@ -519,7 +373,7 @@
                     targetEntities.push({ entityId: entityObject.entity, elementId: entityObject.element });
                   }
                   else {
-                    this.warn(`Cannot find '${entityId}' in HA group configuration`);
+                    this.warn(`Cannot find '${entityObject.entity}' in HA group configuration`);
                   }
                 }
               }
@@ -531,18 +385,12 @@
                 let entityInfo = this.entityInfos[entityId];
                 if (!entityInfo) {
                   entityInfo = {
-                    groupInfos: [],
-                    lastState: undefined,
-                    lastChangedTime: undefined,
+                    groupInfos: [], lastState: undefined, lastChangedTime: undefined,
                   };
                   this.entityInfos[entityId] = entityInfo;
                 }
 
-                let groupInfo = {
-                  group: entityGroup,
-                  svgElementInfos: {},
-                  imageUrl: undefined,
-                };
+                let groupInfo = { group: entityGroup, svgElementInfos: {}, };
                 entityInfo.groupInfos.push(groupInfo);
 
                 let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
@@ -551,86 +399,106 @@
                   continue;
                 }
 
+                let originalBBox = svgElement.getBBox();
+
                 if (entityGroup.camera_image_template) {
-                  let $parent = $(svgElement).parent();
-                  $(svgElement).remove();
-
-                  svgElement = $(document.createElementNS('http://www.w3.org/2000/svg', 'image'))
-                    .attr('id', $(svgElement).attr('id'))
-                    .attr('x', $(svgElement).attr('x'))
-                    .attr('y', $(svgElement).attr('y'))
-                    .attr('height', $(svgElement).attr('height'))
-                    .attr('width', $(svgElement).attr('width'))
-                    .appendTo($parent)[0];
-
-                  groupInfo.svgElementInfos[svgElement.id] = {
-                    svgElement: svgElement,
-                    clonedsvgElement: svgElement.cloneNode(true),
-                    entityId: entityId,
-                  };
+                  svgElement = this.replaceWithImage(svgElement);
                 }
                 else if (entityGroup.image_template) {
-                  let $parent = $(svgElement).parent();
-                  let bbox = svgElement.getBBox();
-                  $(svgElement).remove();
-
-                  svgElement = $('<svg />')
-                    .attr('id', $(svgElement).attr('id'))
-                    .appendTo($parent)[0];
-
-                  groupInfo.svgElementInfos[svgElement.id] = {
-                    svgElement: svgElement,
-                    clonedsvgElement: svgElement.cloneNode(true),
-                    entityId: entityId,
-                    bbox: bbox,
-                  };
+                  svgElement = this.replaceWithSvg(svgElement);
                 }
-                else {
-                  groupInfo.svgElementInfos[svgElement.id] = {
-                    svgElement: svgElement,
-                    clonedsvgElement: svgElement.cloneNode(true),
-                    entityId: entityId,
-                  };
-                }
+
+                this.addSvgElementToGroup(svgElement, entityId, groupInfo, originalBBox);
 
                 for (svgElementId in groupInfo.svgElementInfos) {
                   let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
 
-                  let svgElement = $(svgElementInfo.svgElement);
+                  let $svgElement = $(svgElementInfo.svgElement);
 
                   // Create a title element (to support hover over text)
-                  svgElement.append(document.createElementNS('http://www.w3.org/2000/svg', 'title'));
+                  $svgElement.append(document.createElementNS('http://www.w3.org/2000/svg', 'title'));
 
-                  if (svgElement.length) {
-                    svgElementInfo.svgElement = svgElement[0];
+                  if ($svgElement.length) {
+                    svgElementInfo.svgElement = $svgElement[0];
 
-                    $(svgElement).on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, groupInfo: groupInfo }));
-                    $(svgElement).css('cursor', 'pointer');
-                    $(svgElement).addClass('ha-entity');
+                    $svgElement.on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, groupInfo: groupInfo }));
+                    $svgElement.css('cursor', 'pointer');
+                    $svgElement.addClass('ha-entity');
 
-                    if ($(svgElement).is('text') && (svgElement[0].id === elementId)) {
-                      let boundingBox = svgElement[0].getBBox();
-                      let rect = $(document.createElementNS('http://www.w3.org/2000/svg', 'rect'))
-                        .attr('id', entityId + '.background')
-                        .attr('height', boundingBox.height + 1)
-                        .attr('width', boundingBox.width + 2)
-                        .height(boundingBox.height + 1)
-                        .width(boundingBox.width + 2)
-                        .attr('x', boundingBox.x - 1)
-                        .attr('y', boundingBox.y - 0.5)
-                        .css('fill-opacity', 0);
-
-                      $(rect).insertBefore($(svgElement));
+                    if ($svgElement.is('text') && ($svgElement[0].id === elementId)) {
+                      this.addBackgroundRectToText($svgElement[0], entityId);
                     }
                   }
                 }
               }
             }
 
-            resolve(true);
+            return resolve(true);
           }
         });
       });
+    },
+
+    addBackgroundRectToText(svgElement, entityId) {
+      let bbox = svgElement.getBBox();
+
+      let rect = $(document.createElementNS('http://www.w3.org/2000/svg', 'rect'))
+        .attr('id', entityId + '.background')
+        .attr('height', bbox.height + 1)
+        .attr('width', bbox.width + 2)
+        .attr('x', bbox.x - 1)
+        .attr('y', bbox.y - 0.5)
+        .css('fill-opacity', 0);
+
+      $(rect).insertBefore(svgElement);
+    },
+
+    addSvgElementToGroup(svgElement, entityId, groupInfo, originalBBox) {
+      groupInfo.svgElementInfos[svgElement.id] = {
+        svgElement: svgElement,
+        clonedsvgElement: svgElement.cloneNode(true),
+        entityId: entityId,
+        bbox: originalBBox,
+      };
+
+      this.addNestedSvgElementsToGroup(svgElement, entityId, groupInfo);
+    },
+
+    addNestedSvgElementsToGroup(svgElement, entityId, groupInfo) {
+      $(svgElement).find('*').each((i, svgNestedElement) => {
+        groupInfo.svgElementInfos[svgNestedElement.id] = {
+          svgElement: svgNestedElement,
+          clonedsvgElement: svgNestedElement.cloneNode(true),
+          entityId: entityId,
+        };
+      });
+    },
+
+    replaceWithImage(svgElement) {
+      let $parent = $(svgElement).parent();
+      $(svgElement).remove();
+
+      svgElement = $(document.createElementNS('http://www.w3.org/2000/svg', 'image'))
+        .attr('id', $(svgElement).attr('id'))
+        .attr('x', $(svgElement).attr('x'))
+        .attr('y', $(svgElement).attr('y'))
+        .attr('height', $(svgElement).attr('height'))
+        .attr('width', $(svgElement).attr('width'))
+        .appendTo($parent)[0];
+
+      return svgElement;
+    },
+
+    replaceWithSvg(svgElement) {
+      let $parent = $(svgElement).parent();
+      let bbox = svgElement.getBBox();
+      $(svgElement).remove();
+
+      svgElement = $('<svg />')
+        .attr('id', $(svgElement).attr('id'))
+        .appendTo($parent)[0];
+
+      return svgElement;
     },
 
     handleEntities(entities) {
@@ -705,14 +573,14 @@
 
               let rect = $(svgElement).parent().find(`[id="${entityId}.background"]`);
               if (rect.length) {
-                let boundingBox = svgElement.getBBox();
+                let bbox = svgElement.getBBox();
                 $(rect)
-                  .attr('x', boundingBox.x - 1)
-                  .attr('y', boundingBox.y - 0.5)
-                  .attr('height', boundingBox.height + 1)
-                  .attr('width', boundingBox.width + 2)
-                  .height(boundingBox.height + 1)
-                  .width(boundingBox.width + 2);
+                  .attr('x', bbox.x - 1)
+                  .attr('y', bbox.y - 0.5)
+                  .attr('height', bbox.height + 1)
+                  .attr('width', bbox.width + 2)
+                  .height(bbox.height + 1)
+                  .width(bbox.width + 2);
               }
             }
             else if (groupInfo.group.camera_image_template) {
@@ -745,7 +613,7 @@
         }, Promise.resolve());
 
         promiseChain.then(() => {
-          resolve(true);
+          return resolve(true);
         });
       });
     },
@@ -766,7 +634,7 @@
           }
         }
 
-        resolve(true);
+        return resolve(true);
       });
     },
 
@@ -783,8 +651,7 @@
             let svgElement = svgElementInfo.svgElement;
 
             if (!this.cssRules || !this.cssRules.length) {
-              resolve(true);
-              return;
+              return resolve(true);
             }
 
             let wasTransitionHandled = false;
@@ -867,7 +734,7 @@
           }
         }
 
-        resolve(true);
+        return resolve(true);
       });
     },
 
@@ -892,7 +759,7 @@
 
     loadCameraImage(imageUrl, svgElement, entityState) {
       let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
-      let cacheBuster = ((imageUrl.indexOf('?') >= 0) ? '&' : '?') + 'cacheBuster=' + (new Date().getTime());
+      let cacheBuster = ((imageUrl.indexOf('?') >= 0) ? '&' : '?') + this.getCacheBuster();
       svgElement.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl + cacheBuster);
     },
 
@@ -933,11 +800,11 @@
 
             svgElementInfo.svgElement = embeddedSvg;
 
-            resolve(embeddedSvg);
+            return resolve(embeddedSvg);
           })
           .catch(err => {
             this.error(err);
-            reject(err);
+            return reject(err);
           });
       });
     },
@@ -946,8 +813,7 @@
       return new Promise((resolve, reject) => {
         let cachedSvg = this.imageCache[imageUrl];
         if (cachedSvg) {
-          resolve(cachedSvg);
-          return;
+          return resolve(cachedSvg);
         }
 
         let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
@@ -955,12 +821,12 @@
           url: imageUrl,
           cache: true,
           error: function (err) {
-            reject(new URIError(`${imageUrl}: ${err.responseText}`));
+            return reject(new URIError(`${imageUrl}: ${err.responseText}`));
           }.bind(this),
           success: function (result) {
             let cachedSvg = $(result).find('svg')[0];
             this.imageCache[imageUrl] = cachedSvg;
-            resolve(cachedSvg);
+            return resolve(cachedSvg);
           }.bind(this),
         });
       });
@@ -1278,14 +1144,16 @@
     },
 
     debug(message) {
-      let debug = Polymer.dom(this.$.debug).node;
-      $(debug).find('ul').append(`<li>${message}</li>`)
-      $(debug).css('display', 'block');
+      if (this.isOptionEnabled(this.config.debug)) {
+        let debug = Polymer.dom(this.$.debug).node;
+        $(debug).find('ul').append(`<li>${message}</li>`)
+        $(debug).css('display', 'block');
+      }
     },
 
     loadStyleSheet(path, fn, scope) {
       let head = document.getElementsByTagName('head')[0]; // reference to document.head for appending/ removing link nodes
-      let link = document.createElement('link');       // create the link node
+      let link = document.createElement('link');           // create the link node
       link.setAttribute('href', path);
       link.setAttribute('rel', 'stylesheet');
       link.setAttribute('type', 'text/css');
@@ -1299,25 +1167,29 @@
         sheet = 'styleSheet'; cssRules = 'rules';
       }
 
-      let interval_id = setInterval(function () {           // start checking whether the style sheet has successfully loaded
+      let interval_id = setInterval(function () {                     // start checking whether the style sheet has successfully loaded
         try {
           if (link[sheet] && link[sheet][cssRules].length) { // SUCCESS! our style sheet has loaded
-            clearInterval(interval_id);            // clear the counters
+            clearInterval(interval_id);                      // clear the counters
             clearTimeout(timeout_id);
-            fn.call(scope || window, true, link);       // fire the callback with success == true
+            fn.call(scope || window, true, link);           // fire the callback with success == true
           }
-        } catch (e) { } finally { }
-      }, 10),                           // how often to check if the stylesheet is loaded
-        timeout_id = setTimeout(function () {     // start counting down till fail
-          clearInterval(interval_id);       // clear the counters
+        } catch (e) { debugger; } finally { }
+      }, 10),                                                   // how often to check if the stylesheet is loaded
+        timeout_id = setTimeout(function () {       // start counting down till fail
+          clearInterval(interval_id);             // clear the counters
           clearTimeout(timeout_id);
-          head.removeChild(link);        // since the style sheet didn't load, remove the link node from the DOM
+          head.removeChild(link);                // since the style sheet didn't load, remove the link node from the DOM
           fn.call(scope || window, false, link); // fire the callback with success == false
-        }, 15000);                 // how long to wait before failing
+        }, 15000);                                 // how long to wait before failing
 
       head.appendChild(link);  // insert the link node into the DOM and start loading the style sheet
 
       return link; // return the link node;
+    },
+
+    getCacheBuster() {
+      return 'cacheBuster=' + (new Date().getTime());
     },
 
     rgbToHex(rgb) {
@@ -1350,7 +1222,7 @@
         Math.round(color1.b * w1 + color2.b * w2)
       ];
       return rgb;
-    }
+    },
   });
 
 </script>
