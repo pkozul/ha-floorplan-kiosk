@@ -146,6 +146,7 @@ if (typeof window.FullyKiosk !== 'function') {
 
     playMedia(mediaUrl) {
       let audio = new Audio(mediaUrl);
+      audio.volume = 1.0;
       audio.play();
     }
 
