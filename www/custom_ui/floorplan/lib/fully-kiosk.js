@@ -152,16 +152,24 @@ if (typeof window.FullyKiosk !== 'function') {
 
     subscribeEvents() {
       this.floorplan.hass.connection.subscribeEvents((event) => {
+        if (!this.kioskInfo) {
+          return;
+        }
+
+        /*
         if ((event.data.domain === 'tts') && (event.data.service === 'google_say')) {
-          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id)) {
+          if (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id) {
             this.debug('Playing TTS using Fully Kiosk');
             this.playTextToSpeech(event.data.service_data.message);
           }
         }
-        else if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
-          if (this.kioskInfo && (this.kioskInfo.mediaPlayerEntityId === event.data.service_data.entity_id[0])) {
-            this.debug('Playing TTS using Google Say (mp3 file from Home Assistant)');
-            this.playMedia(event.data.service_data.media_content_id);
+        */
+        if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
+          for (let entityId of event.data.service_data.entity_id) {
+            if (this.kioskInfo.mediaPlayerEntityId === entityId) {
+              this.debug('Playing TTS using HTML audio (mp3 file from Home Assistant)');
+              this.playMedia(event.data.service_data.media_content_id);
+            }
           }
         }
       },
