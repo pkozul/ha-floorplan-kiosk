@@ -1,9 +1,16 @@
+/*
+Floorplan Fully Kiosk for Home Assistant
+Version: 1.0.7.7
+https://github.com/pkozul/ha-floorplan
+*/
+
 'use strict';
 
 if (typeof window.FullyKiosk !== 'function') {
   class FullyKiosk {
     constructor(floorplan) {
       this.floorplan = floorplan;
+      this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
     }
 
     init() {
@@ -21,7 +28,8 @@ if (typeof window.FullyKiosk !== 'function') {
       this.subscribeEvents();
 
       this.kioskInfo = {
-        binarySensorEntityId: device.entities.find(x => x.startsWith('binary_sensor.')),
+        motionBinarySensorEntityId: device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_motion')),
+        pluggedBinarySensorEntityId: device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_plugged')),
         mediaPlayerEntityId: device.entities.find(x => x.startsWith('media_player.')),
         startUrl: fully.getStartUrl(),
         currentLocale: fully.getCurrentLocale(),
@@ -34,12 +42,14 @@ if (typeof window.FullyKiosk !== 'function') {
         batteryLevel: fully.getBatteryLevel(),
         screenBrightness: fully.getScreenBrightness(),
         isScreenOn: fully.getScreenOn(),
-        motionState: 'off',
+        isPluggedIn: fully.isPlugged(),
+        isMotionDetected: false,
       };
 
       this.addEventHandlers();
 
-      this.sendKioskState(this.kioskInfo.motionState);
+      this.sendMotionState();
+      this.sendPluggedState();
     }
 
     addEventHandlers() {
@@ -93,11 +103,13 @@ if (typeof window.FullyKiosk !== 'function') {
     }
 
     onFullyUnplugged() {
-      this.debug('Device unplugged');
+      this.kioskInfo.isPluggedIn = false;
+      this.sendPluggedState();
     }
 
     onFullyPluggedAC() {
-      this.debug('Deviced plugged into AC power');
+      this.kioskInfo.isPluggedIn = true;
+      this.sendPluggedState();
     }
 
     onFullyPluggedUSB() {
@@ -105,37 +117,62 @@ if (typeof window.FullyKiosk !== 'function') {
     }
 
     onFullyMotion() {
-      this.sendKioskState(true);
+      this.kioskInfo.isMotionDetected = true;
+      this.sendMotionState();
     }
 
-    sendKioskState(isOn) {
-      clearTimeout(this.sendKioskStateTimer);
+    sendMotionState() {
+      clearTimeout(this.sendMotionStateTimer);
 
-      if (!this.kioskInfo.binarySensorEntityId)
+      if (!this.kioskInfo.motionBinarySensorEntityId)
         return;
 
-      this.kioskInfo.motionState = isOn ? 'on' : 'off';
-      let timeout = isOn ? 5000 : 10000;
+      let payload = {
+        "state": this.kioskInfo.isMotionDetected ? "on" : "off",
+        "mac_address": fully.macAddress
+      };
 
-      let authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
-
-      let payload = { "state": this.kioskInfo.motionState, "mac_address": fully.macAddress };
+      let timeout = this.kioskInfo.isMotionDetected ? 5000 : 10000;
 
       jQuery.ajax({
         type: 'POST',
-        url: `/api/states/${this.kioskInfo.binarySensorEntityId}`,
-        headers: { "X-HA-Access": authToken },
+        url: `/api/states/${this.kioskInfo.motionBinarySensorEntityId}`,
+        headers: { "X-HA-Access": this.authToken },
         data: JSON.stringify(payload),
         success: function (result) {
-          //      this.debug(`Sent state: ${this.kioskInfo.motionState}`);
-          //      this.debug(`Setting timeout: ${timeout}`);
-          this.sendKioskStateTimer = setTimeout(() => { this.sendKioskState(false); }, timeout);
+          this.debug('Sent kiosk motion state: ' + JSON.stringify(payload));
+          this.sendMotionStateTimer = setTimeout(() => {
+            this.sendMotionState(false);
+          }, timeout);
         }.bind(this),
         error: function (err) {
-          //      this.error('Error sending state');
-          this.sendKioskStateTimer = setTimeout(() => { this.sendKioskState(false); }, timeout);
-          this.debug('4');
-          this.error('Could not set kiosk state');
+          this.error('Error setting kiosk motion state');
+          this.sendMotionStateTimer = setTimeout(() => {
+            this.sendMotionState(false);
+          }, timeout);
+        }.bind(this)
+      });
+    }
+
+    sendPluggedState(isOn) {
+      if (!this.kioskInfo.pluggedBinarySensorEntityId)
+        return;
+
+      let payload = {
+        "state": this.kioskInfo.isPluggedIn ? "on" : "off",
+        "mac_address": fully.macAddress
+      };;
+
+      jQuery.ajax({
+        type: 'POST',
+        url: `/api/states/${this.kioskInfo.pluggedBinarySensorEntityId}`,
+        headers: { "X-HA-Access": this.authToken },
+        data: JSON.stringify(payload),
+        success: function (result) {
+          this.debug('Sent kiosk plugged state: ' + JSON.stringify(payload));
+        }.bind(this),
+        error: function (err) {
+          this.error('Error setting kiosk plugged state');
         }.bind(this)
       });
     }
