@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.7
+Version: 1.0.7.8
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -142,13 +142,15 @@ if (typeof window.FullyKiosk !== 'function') {
         success: function (result) {
           this.debug('Sent kiosk motion state: ' + JSON.stringify(payload));
           this.sendMotionStateTimer = setTimeout(() => {
-            this.sendMotionState(false);
+            this.kioskInfo.isMotionDetected = false;
+            this.sendMotionState();
           }, timeout);
         }.bind(this),
         error: function (err) {
           this.error('Error setting kiosk motion state');
           this.sendMotionStateTimer = setTimeout(() => {
-            this.sendMotionState(false);
+            this.kioskInfo.isMotionDetected = false;
+            this.sendMotionState();
           }, timeout);
         }.bind(this)
       });
