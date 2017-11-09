@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.8
+Version: 1.0.7.9
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -191,8 +191,16 @@ if (typeof window.FullyKiosk !== 'function') {
 
     subscribeEvents() {
       this.floorplan.hass.connection.subscribeEvents((event) => {
-        if (!this.kioskInfo) {
+        if (!this.kioskInfo || !this.kioskInfo.mediaPlayerEntityId) {
           return;
+        }
+
+        if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
+          let targetEntityId = event.data.service_data.entity_id.find(entityId => (entityId === this.kioskInfo.mediaPlayerEntityId));
+          if (targetEntityId) {
+            this.debug(`Playing media: ${event.data.service_data.media_content_id}`);
+            this.playMedia(event.data.service_data.media_content_id);
+          }
         }
 
         /*
@@ -203,14 +211,6 @@ if (typeof window.FullyKiosk !== 'function') {
           }
         }
         */
-        if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
-          for (let entityId of event.data.service_data.entity_id) {
-            if (this.kioskInfo.mediaPlayerEntityId === entityId) {
-              this.debug('Playing TTS using HTML audio (mp3 file from Home Assistant)');
-              this.playMedia(event.data.service_data.media_content_id);
-            }
-          }
-        }
       },
         'call_service');
     }
