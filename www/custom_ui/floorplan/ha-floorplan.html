@@ -1,6 +1,6 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.7.10
+  Version: 1.0.7.11
   https://github.com/pkozul/ha-floorplan
 -->
 
@@ -460,7 +460,9 @@
     addSvgElementToGroup(svgElement, entityId, groupInfo, originalBBox) {
       groupInfo.svgElementInfos[svgElement.id] = {
         svgElement: svgElement,
-        clonedsvgElement: svgElement.cloneNode(true),
+        originalStroke: svgElement.style.stroke,
+        originalFill: svgElement.style.fill,
+        originalClasses: this.getArray(svgElement.classList),
         entityId: entityId,
         bbox: originalBBox,
       };
@@ -472,7 +474,9 @@
       $(svgElement).find('*').each((i, svgNestedElement) => {
         groupInfo.svgElementInfos[svgNestedElement.id] = {
           svgElement: svgNestedElement,
-          clonedsvgElement: svgNestedElement.cloneNode(true),
+          originalStroke: svgNestedElement.style.stroke,
+          originalFill: svgNestedElement.style.fill,
+          originalClasses: this.getArray(svgNestedElement.classList),
           entityId: entityId,
         };
       });
@@ -513,6 +517,7 @@
         let entityState = entities[entityId];
 
         let isUsingLastMotion = this.config && this.config.last_motion_entity &&
+          (this.config.last_motion_entity === entityId) &&
           this.config.last_motion_class && entities[this.config.last_motion_entity];
 
         let entityInfo = this.entityInfos[entityId];
@@ -531,6 +536,8 @@
     },
 
     handleEntity(entityId, entities) {
+      console.log(`Handling entity: ${entityId} (${entities[entityId].state})`);
+
       let entityState = entities[entityId];
 
       let entityInfo = this.entityInfos[entityId];
@@ -694,8 +701,6 @@
               targetClass = this.evaluate(groupInfo.group.class_template, entityState, entities);
             }
 
-            let originalClasses = this.getArray(svgElementInfo.clonedsvgElement.classList);
-
             // Get the config for the current state
             if (groupInfo.group.states) {
               let stateConfig = groupInfo.group.states.find(stateConfig => (stateConfig.state === entityState.state));
@@ -707,7 +712,7 @@
               for (let otherStateConfig of groupInfo.group.states) {
                 if (!stateConfig || (otherStateConfig.state !== stateConfig.state)) {
                   if (otherStateConfig.class && (otherStateConfig.class !== 'ha-entity') && $(svgElement).hasClass(otherStateConfig.class)) {
-                    if (originalClasses.indexOf(otherStateConfig.class) < 0) {
+                    if (svgElementInfo.originalClasses.indexOf(otherStateConfig.class) < 0) {
                       obsoleteClasses.push(otherStateConfig.class);
                     }
                   }
@@ -717,7 +722,7 @@
             else {
               for (let otherClassName of this.getArray(svgElement.classList)) {
                 if ((otherClassName !== targetClass) && (otherClassName !== 'ha-entity')) {
-                  if (originalClasses.indexOf(otherClassName) < 0) {
+                  if (svgElementInfo.originalClasses.indexOf(otherClassName) < 0) {
                     obsoleteClasses.push(otherClassName);
                   }
                 }
@@ -972,8 +977,8 @@
           svgElement.style.stroke = stroke;
         }
         else {
-          if (svgElementInfo.clonedsvgElement) {
-            svgElement.style.stroke = svgElementInfo.clonedsvgElement.style.stroke;
+          if (svgElementInfo.originalStroke) {
+            svgElement.style.stroke = svgElementInfo.originalStroke;
           }
           else {
             // ???
@@ -985,8 +990,8 @@
           svgElement.style.fill = fill;
         }
         else {
-          if (svgElementInfo.clonedsvgElement) {
-            svgElement.style.fill = svgElementInfo.clonedsvgElement.style.fill;
+          if (svgElementInfo.originalFill) {
+            svgElement.style.fill = svgElementInfo.originalFill;
           }
           else {
             // ???
