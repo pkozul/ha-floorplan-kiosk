@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.9
+Version: 1.0.7.10
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -21,7 +21,8 @@ if (typeof window.FullyKiosk !== 'function') {
 
       let macAddress = fully.getMacAddress().toLowerCase();
 
-      let device = this.floorplan.config.devices.find(x => x.address.toLowerCase() == macAddress);
+      let device = this.floorplan.config && this.floorplan.config.devices &&
+        this.floorplan.config.devices.find(x => x.address.toLowerCase() == macAddress);
       if (!device)
         return;
 
