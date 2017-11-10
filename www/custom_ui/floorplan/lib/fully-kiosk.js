@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.10
+Version: 1.0.7.11
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -29,9 +29,9 @@ if (typeof window.FullyKiosk !== 'function') {
       this.subscribeEvents();
 
       this.kioskInfo = {
-        motionBinarySensorEntityId: device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_motion')),
-        pluggedBinarySensorEntityId: device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_plugged')),
-        mediaPlayerEntityId: device.entities.find(x => x.startsWith('media_player.')),
+        motionBinarySensorEntityId: device.entities && device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_motion')),
+        pluggedBinarySensorEntityId: device.entities && device.entities.find(x => x.startsWith('binary_sensor.') && x.endsWith('_plugged')),
+        mediaPlayerEntityId: device.entities && device.entities.find(x => x.startsWith('media_player.')),
         startUrl: fully.getStartUrl(),
         currentLocale: fully.getCurrentLocale(),
         ipAddressv4: fully.getIp4Address(),
