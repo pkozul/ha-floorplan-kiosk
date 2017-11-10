@@ -219,6 +219,7 @@
         })
         .catch(err => {
           this.isLoading = false;
+          this.error('1');
           this.error(err);
         });
     },
@@ -514,15 +515,16 @@
 
       let changedEntityIds = [];
       for (let entityId of entityIds) {
-        let entityState = entities[entityId];
-
-        let isUsingLastMotion = this.config && this.config.last_motion_entity &&
-          (this.config.last_motion_entity === entityId) &&
-          this.config.last_motion_class && entities[this.config.last_motion_entity];
-
         let entityInfo = this.entityInfos[entityId];
-        if (isUsingLastMotion || (entityInfo && (entityInfo.lastState !== entityState.state))) {
-          changedEntityIds.push(entityId);
+        if (entityInfo) {
+          let isUsingLastMotion = this.config && this.config.last_motion_entity &&
+            entityId.startsWith("binary_sensor.") &&
+            this.config.last_motion_class && entities[this.config.last_motion_entity];
+
+          let entityState = entities[entityId];
+          if (isUsingLastMotion || (entityInfo && (entityInfo.lastState !== entityState.state))) {
+            changedEntityIds.push(entityId);
+          }
         }
       }
 
@@ -539,17 +541,16 @@
       console.log(`Handling entity: ${entityId} (${entities[entityId].state})`);
 
       let entityState = entities[entityId];
-
       let entityInfo = this.entityInfos[entityId];
-      if (!entityInfo) {
-        return Promise.resolve(true);
-      }
 
       entityInfo.lastState = entityState.state;
 
       return this.handleEntityUpdateDom(entityId, entities)
-        .then(() => this.handleEntitySetHoverOver(entityId, entities))
-        .then(() => this.handleEntityUpdateCss(entityId, entities));
+        .then(() => {
+          this.handleEntitySetHoverOver(entityId, entities);
+          this.handleEntityUpdateCss(entityId, entities);
+          this.handleEntityUpdateLastMotionCss(entityId, entities);
+        });
     },
 
     handleEntityUpdateDom(entityId, entities) {
@@ -638,121 +639,127 @@
     },
 
     handleEntitySetHoverOver(entityId, entities) {
-      return new Promise((resolve, reject) => {
-        let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+      let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
 
-        let entityState = entities[entityId];
-        let entityInfo = this.entityInfos[entityId];
+      let entityState = entities[entityId];
+      let entityInfo = this.entityInfos[entityId];
 
-        for (var groupInfo of entityInfo.groupInfos) {
-          for (let svgElementId in groupInfo.svgElementInfos) {
-            let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
-            let svgElement = svgElementInfo.svgElement;
+      for (var groupInfo of entityInfo.groupInfos) {
+        for (let svgElementId in groupInfo.svgElementInfos) {
+          let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
+          let svgElement = svgElementInfo.svgElement;
 
-            this.setHoverOverText(svgElement, entityState);
-          }
+          this.setHoverOverText(svgElement, entityState);
         }
-
-        return resolve(true);
-      });
+      }
     },
 
     handleEntityUpdateCss(entityId, entities) {
-      return new Promise((resolve, reject) => {
-        let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+      if (!this.cssRules || !this.cssRules.length) {
+        return;
+      }
 
-        let entityState = entities[entityId];
-        let entityInfo = this.entityInfos[entityId];
+      let entityState = entities[entityId];
+      let entityInfo = this.entityInfos[entityId];
 
-        for (var groupInfo of entityInfo.groupInfos) {
-          for (let svgElementId in groupInfo.svgElementInfos) {
-            let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
-            let svgElement = svgElementInfo.svgElement;
+      for (var groupInfo of entityInfo.groupInfos) {
+        for (let svgElementId in groupInfo.svgElementInfos) {
+          let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
+          let svgElement = svgElementInfo.svgElement;
 
-            if (!this.cssRules || !this.cssRules.length) {
-              return resolve(true);
-            }
+          let wasTransitionHandled = false;
 
-            let wasTransitionHandled = false;
+          if (groupInfo.group.states && groupInfo.group.state_transitions) {
+            let transitionConfig = groupInfo.group.state_transitions.find(transitionConfig => (transitionConfig.to_state === entityState.state));
+            if (transitionConfig && transitionConfig.from_state && transitionConfig.to_state && transitionConfig.duration) {
+              // Determine the current time on the server (based on the local vs. server time difference)
+              let serverMoment = this.getServerMoment();
+              let lastChangedMoment = moment(entityState.last_changed);
+              let elapsed = Math.max(serverMoment.diff(lastChangedMoment, 'milliseconds'), 0);
+              let remaining = (transitionConfig.duration * 1000) - elapsed;
 
-            if (groupInfo.group.states && groupInfo.group.state_transitions) {
-              let transitionConfig = groupInfo.group.state_transitions.find(transitionConfig => (transitionConfig.to_state === entityState.state));
-              if (transitionConfig && transitionConfig.from_state && transitionConfig.to_state && transitionConfig.duration) {
-                // Determine the current time on the server (based on the local vs. server time difference)
-                let serverMoment = this.getServerMoment();
-                let lastChangedMoment = moment(entityState.last_changed);
-                let elapsed = Math.max(serverMoment.diff(lastChangedMoment, 'milliseconds'), 0);
-                let remaining = (transitionConfig.duration * 1000) - elapsed;
-
-                if (remaining > 0) {
-                  entityInfo.lastChangedTime = lastChangedMoment.toDate();
-                }
-                else {
-                  this.setEntityStyle(svgElementInfo, svgElement, entityInfo, groupInfo);
-                }
-                wasTransitionHandled = true;
+              if (remaining > 0) {
+                entityInfo.lastChangedTime = lastChangedMoment.toDate();
               }
-            }
-
-            let targetClass = undefined;
-            let obsoleteClasses = [];
-
-            if (groupInfo.group.class_template) {
-              targetClass = this.evaluate(groupInfo.group.class_template, entityState, entities);
-            }
-
-            // Get the config for the current state
-            if (groupInfo.group.states) {
-              let stateConfig = groupInfo.group.states.find(stateConfig => (stateConfig.state === entityState.state));
-              if (stateConfig && stateConfig.class && !wasTransitionHandled) {
-                targetClass = stateConfig.class;
+              else {
+                this.setEntityStyle(svgElementInfo, svgElement, entityInfo, groupInfo);
               }
+              wasTransitionHandled = true;
+            }
+          }
 
-              // Remove any other previously-added state classes
-              for (let otherStateConfig of groupInfo.group.states) {
-                if (!stateConfig || (otherStateConfig.state !== stateConfig.state)) {
-                  if (otherStateConfig.class && (otherStateConfig.class !== 'ha-entity') && $(svgElement).hasClass(otherStateConfig.class)) {
-                    if (svgElementInfo.originalClasses.indexOf(otherStateConfig.class) < 0) {
-                      obsoleteClasses.push(otherStateConfig.class);
-                    }
+          let targetClass = undefined;
+          let obsoleteClasses = [];
+
+          if (groupInfo.group.class_template) {
+            targetClass = this.evaluate(groupInfo.group.class_template, entityState, entities);
+          }
+
+          // Get the config for the current state
+          if (groupInfo.group.states) {
+            let stateConfig = groupInfo.group.states.find(stateConfig => (stateConfig.state === entityState.state));
+            if (stateConfig && stateConfig.class && !wasTransitionHandled) {
+              targetClass = stateConfig.class;
+            }
+
+            // Remove any other previously-added state classes
+            for (let otherStateConfig of groupInfo.group.states) {
+              if (!stateConfig || (otherStateConfig.state !== stateConfig.state)) {
+                if (otherStateConfig.class && (otherStateConfig.class !== 'ha-entity') && $(svgElement).hasClass(otherStateConfig.class)) {
+                  if (svgElementInfo.originalClasses.indexOf(otherStateConfig.class) < 0) {
+                    obsoleteClasses.push(otherStateConfig.class);
                   }
                 }
-              }
-            }
-            else {
-              for (let otherClassName of this.getArray(svgElement.classList)) {
-                if ((otherClassName !== targetClass) && (otherClassName !== 'ha-entity')) {
-                  if (svgElementInfo.originalClasses.indexOf(otherClassName) < 0) {
-                    obsoleteClasses.push(otherClassName);
-                  }
-                }
-              }
-            }
-
-            // Remove any obsolete classes from the entity
-            this.removeClasses(entityId, svgElement, obsoleteClasses);
-
-            // Add the target class to the entity
-            if (targetClass) {
-              this.addClass(entityId, svgElement, targetClass);
-            }
-
-            if (this.config && this.config.last_motion_entity && this.config.last_motion_class && entities[this.config.last_motion_entity] &&
-              (entityState.attributes.friendly_name === entities[this.config.last_motion_entity].state)) {
-              if (!$(svgElement).hasClass(this.config.last_motion_class)) {
-                $(svgElement).addClass(this.config.last_motion_class);
-              }
-            }
-            else {
-              if ($(svgElement).hasClass(this.config.last_motion_class)) {
-                $(svgElement).removeClass(this.config.last_motion_class);
               }
             }
           }
-        }
+          else {
+            for (let otherClassName of this.getArray(svgElement.classList)) {
+              if ((otherClassName !== targetClass) && (otherClassName !== 'ha-entity')) {
+                if (svgElementInfo.originalClasses.indexOf(otherClassName) < 0) {
+                  obsoleteClasses.push(otherClassName);
+                }
+              }
+            }
+          }
 
-        return resolve(true);
-      });
+          // Remove any obsolete classes from the entity
+          this.removeClasses(entityId, svgElement, obsoleteClasses);
+
+          // Add the target class to the entity
+          if (targetClass) {
+            this.addClass(entityId, svgElement, targetClass);
+          }
+        }
+      }
+    },
+
+    handleEntityUpdateLastMotionCss(entityId, entities) {
+      if (!this.cssRules || !this.cssRules.length) {
+        return;
+      }
+
+      let entityState = entities[entityId];
+      let entityInfo = this.entityInfos[entityId];
+
+      for (var groupInfo of entityInfo.groupInfos) {
+        for (let svgElementId in groupInfo.svgElementInfos) {
+          let svgElementInfo = groupInfo.svgElementInfos[svgElementId];
+          let svgElement = svgElementInfo.svgElement;
+
+          if (this.config && this.config.last_motion_entity && this.config.last_motion_class && entities[this.config.last_motion_entity] &&
+            (entityState.attributes.friendly_name === entities[this.config.last_motion_entity].state)) {
+            if (!$(svgElement).hasClass(this.config.last_motion_class)) {
+              $(svgElement).addClass(this.config.last_motion_class);
+            }
+          }
+          else {
+            if ($(svgElement).hasClass(this.config.last_motion_class)) {
+              $(svgElement).removeClass(this.config.last_motion_class);
+            }
+          }
+        }
+      }
     },
 
     setHoverOverText(element, entityState) {
@@ -798,7 +805,10 @@
               .attr('height', svgElementInfo.bbox.height)
               .attr('width', svgElementInfo.bbox.width)
               .attr('x', svgElementInfo.bbox.x)
-              .attr('y', svgElementInfo.bbox.y);
+              .attr('y', svgElementInfo.bbox.y)
+              .css('-webkit-perspective:', '1000')
+              .css('-webkit-transform-style', 'preserve-3d')
+              .css('-webkit-backface-visibility', 'hidden');
 
             $(embeddedSvg).find('*').append(document.createElementNS('http://www.w3.org/2000/svg', 'title'))
               .on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, groupInfo: groupInfo }))
@@ -824,6 +834,7 @@
             return resolve(embeddedSvg);
           })
           .catch(err => {
+            this.error('2');
             this.error(err);
             return reject(err);
           });
@@ -1153,14 +1164,14 @@
 
     error(message) {
       let errors = Polymer.dom(this.$.errors).node;
-      $(errors).find('ul').append(`<li>${moment().format('YYYY-MMM-DD HH:mm:ss')} ${message}</li>`)
+      $(errors).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
       $(errors).css('display', 'block');
     },
 
     warn(message) {
       if (this.isOptionEnabled(this.config.warnings)) {
         let warnings = Polymer.dom(this.$.warnings).node;
-        $(warnings).find('ul').append(`<li>${moment().format('YYYY-MMM-DD HH:mm:ss')} ${message}</li>`)
+        $(warnings).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
         $(warnings).css('display', 'block');
       }
     },
@@ -1168,7 +1179,7 @@
     debug(message, isForce) {
       if (this.isOptionEnabled(this.config.debug) || isForce) {
         let debug = Polymer.dom(this.$.debug).node;
-        $(debug).find('ul').append(`<li>${moment().format('YYYY-MMM-DD HH:mm:ss')} ${message}</li>`)
+        $(debug).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
         $(debug).css('display', 'block');
       }
     },
