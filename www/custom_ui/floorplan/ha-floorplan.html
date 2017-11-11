@@ -193,11 +193,13 @@
       return Promise.all(promises) // wait for all promises to complete
         .then(() => {
           let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
-          $(svg).show();
 
           this.isLoading = false;
 
-          this.handleEntities(this.hass.states);
+          this.handleEntities(this.hass.states)
+          .then(() => {
+            $(svg).show();
+          });
 
           if (this.config.groups.find(entityGroup => entityGroup.state_transitions)) {
             setInterval(this.updateStateTransitions.bind(this), 100);
@@ -552,7 +554,7 @@
         return func.then(() => this.handleEntity(entityId, entities));
       }, Promise.resolve());
 
-      promiseChain.then(() => {
+      return promiseChain.then(() => {
         console.log('********** Handling entity state changes - END **********');
         console.log('');
         //console.log('Done!');
