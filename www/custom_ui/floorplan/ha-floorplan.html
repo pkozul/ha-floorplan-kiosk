@@ -192,6 +192,9 @@
 
       return Promise.all(promises) // wait for all promises to complete
         .then(() => {
+          let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+          $(svg).show();
+
           this.isLoading = false;
 
           this.handleEntities(this.hass.states);
@@ -308,6 +311,8 @@
             $(svg).width('100%');
             $(svg).css('position', this.isPanel ? 'absolute' : 'relative');
             $(svg).css('cursor', 'default');
+
+            $(svg).hide();
 
             Polymer.dom(this.$.floorplan).node.appendChild(svg);
 
