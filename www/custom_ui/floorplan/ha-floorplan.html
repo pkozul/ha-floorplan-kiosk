@@ -511,19 +511,34 @@
     },
 
     handleEntities(entities) {
+      if (!this.config) {
+        return;
+      }
+
+      console.log('********** Handling entity state changes - START **********');
+
       let entityIds = Object.keys(entities);
 
       let changedEntityIds = [];
+
       for (let entityId of entityIds) {
         let entityInfo = this.entityInfos[entityId];
         if (entityInfo) {
-          let isUsingLastMotion = this.config && this.config.last_motion_entity &&
-            entityId.startsWith("binary_sensor.") &&
-            this.config.last_motion_class && entities[this.config.last_motion_entity];
-
           let entityState = entities[entityId];
-          if (isUsingLastMotion || (entityInfo && (entityInfo.lastState !== entityState.state))) {
-            changedEntityIds.push(entityId);
+
+          if (entityInfo && (entityInfo.lastState !== entityState.state)) {
+            console.log(`Entity changed: ${entityId} (${entities[entityId].state})`);
+            if (changedEntityIds.indexOf(entityId) < 0) {
+              changedEntityIds.push(entityId);
+            }
+          }
+
+          if (this.config.last_motion_entity && entityId.startsWith("binary_sensor.") &&
+            this.config.last_motion_class && entities[this.config.last_motion_entity]) {
+            console.log(`... Entity might be used in last motion: ${entityId} (${entities[entityId].state})`);
+            if (changedEntityIds.indexOf(entityId) < 0) {
+              changedEntityIds.push(entityId);
+            }
           }
         }
       }
@@ -533,13 +548,13 @@
       }, Promise.resolve());
 
       promiseChain.then(() => {
+        console.log('********** Handling entity state changes - END **********');
+        console.log('');
         //console.log('Done!');
       });
     },
 
     handleEntity(entityId, entities) {
-      console.log(`Handling entity: ${entityId} (${entities[entityId].state})`);
-
       let entityState = entities[entityId];
       let entityInfo = this.entityInfos[entityId];
 
