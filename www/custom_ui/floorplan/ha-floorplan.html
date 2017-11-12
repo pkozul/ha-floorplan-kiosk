@@ -1,6 +1,6 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.7.11
+  Version: 1.0.7.12
   https://github.com/pkozul/ha-floorplan
 -->
 
@@ -102,8 +102,12 @@
         type: Number,
         value: undefined,
       },
+      transitioningEntityIds: {
+        type: Object,
+        value: () => { return new Set(); },
+      },
       entityInfos: {
-        type: Array,
+        type: Object,
         value: () => { return []; },
       },
       elementInfos: {
@@ -196,10 +200,7 @@
 
           this.isLoading = false;
 
-          this.handleEntities(this.hass.states)
-          .then(() => {
-            $(svg).show();
-          });
+          this.handleEntities(this.hass.states, true);
 
           if (this.config.groups.find(entityGroup => entityGroup.state_transitions)) {
             setInterval(this.updateStateTransitions.bind(this), 100);
@@ -313,8 +314,6 @@
             $(svg).width('100%');
             $(svg).css('position', this.isPanel ? 'absolute' : 'relative');
             $(svg).css('cursor', 'default');
-
-            $(svg).hide();
 
             Polymer.dom(this.$.floorplan).node.appendChild(svg);
 
@@ -517,12 +516,13 @@
       return svgElement;
     },
 
-    handleEntities(entities) {
+    handleEntities(entities, isFirstTime) {
       if (!this.config) {
         return;
       }
 
       console.log('********** Handling entity state changes - START **********');
+      console.log(`>>> Transitioning entities: ${this.transitioningEntityIds.size}`);
 
       let entityIds = Object.keys(entities);
 
@@ -540,7 +540,9 @@
             }
           }
 
-          if (this.config.last_motion_entity && entityId.startsWith("binary_sensor.") &&
+          let isAnyTransitioningEntities = isFirstTime || (this.transitioningEntityIds.size > 0);
+
+          if (this.config.last_motion_entity && isAnyTransitioningEntities && entityId.startsWith("binary_sensor.") &&
             this.config.last_motion_class && entities[this.config.last_motion_entity]) {
             console.log(`... Entity might be used in last motion: ${entityId} (${entities[entityId].state})`);
             if (changedEntityIds.indexOf(entityId) < 0) {
@@ -788,19 +790,18 @@
       let dateFormat = this.config.date_format ? this.config.date_format : 'DD-MMM-YYYY';
 
       $(element).find('title').each((i, titleElement) => {
+        let lastChanged = moment().to(moment(entityState.last_changed));
+        let lastChangedDate = moment(entityState.last_changed).format(dateFormat);
+        let lastChangedTime = moment(entityState.last_changed).format('HH:mm:ss');
+
         let titleText = `${entityState.attributes.friendly_name}\n`;
-        titleText += `State: ${entityState.state}\n\n`;
+        titleText += `State: ${entityState.state} (${lastChanged})\n\n`;
 
         Object.keys(entityState.attributes).map(key => {
           titleText += `${key}: ${entityState.attributes[key]}\n`;
         });
         titleText += '\n';
 
-        let lastChanged = moment().to(moment(entityState.last_changed));
-        let lastChangedDate = moment(entityState.last_changed).format(dateFormat);
-        let lastChangedTime = moment(entityState.last_changed).format('HH:mm:ss');
-
-        titleText += `Last changed: ${lastChanged}\n`;
         titleText += `Last changed: ${lastChangedDate} ${lastChangedTime}`;
 
         $(titleElement).html(titleText);
@@ -974,15 +975,27 @@
                 if (fromFill && toFill) {
                   let elapsed = serverMoment.diff(moment(entityInfo.lastChangedTime), 'milliseconds');
                   if (elapsed < 0) {
+                    if (!this.transitioningEntityIds.has(entityId)) {
+                      this.transitioningEntityIds.add(entityId);
+                    }
+
                     groupInfo.isTransitioning = true;
                     this.setTransitionFill(svgElement, fromFill, toFill, 1);
                   }
                   else {
                     if (elapsed < (transitionConfig.duration * 1000)) {
+                      if (!this.transitioningEntityIds.has(entityId)) {
+                        this.transitioningEntityIds.add(entityId);
+                      }
+
                       groupInfo.isTransitioning = true;
                       this.setTransitionFill(svgElement, fromFill, toFill, elapsed / (transitionConfig.duration * 1000));
                     }
                     else {
+                      if (this.transitioningEntityIds.has(entityId)) {
+                        this.transitioningEntityIds.delete(entityId);
+                      }
+
                       groupInfo.isTransitioning = false;
                       this.setTransitionFill(svgElement, fromFill, toFill, 0);
                       entityInfo.lastChangedTime = undefined;
