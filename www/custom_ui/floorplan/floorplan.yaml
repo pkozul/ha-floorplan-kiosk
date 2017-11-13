@@ -1,0 +1,60 @@
+      name: Floorplan
+      image: /local/custom_ui/floorplan/floorplan.svg
+      stylesheet: /local/custom_ui/floorplan/floorplan.css
+
+      warnings:
+      debug:
+#      pan_zoom:
+      hide_app_toolbar:
+      date_format: DD-MMM-YYYY
+      fully_kiosk:
+
+      last_motion_entity: sensor.template_last_motion
+      last_motion_class: last-motion
+
+      devices:
+
+        - name: Entry Kiosk
+          address: 88:71:e5:af:d6:12
+          entities:
+            - binary_sensor.entry_kiosk
+            - media_player.entry_kiosk
+
+        - name: Bedroom Kiosk
+          address: 88:71:e5:af:d6:ad
+          entities:
+            - binary_sensor.bedroom_kiosk
+            - media_player.bedroom_kiosk
+
+      groups:
+
+        - name: Alarm Panel
+          entities:
+            - alarm_control_panel.alarm
+          states:
+            - state: 'armed_away'
+              class: 'warning-text'
+            - state: 'armed_home'
+              class: 'warning-text'
+            - state: 'disarmed'
+              class: 'info-text'
+
+        - name: Binary sensors
+          entities:
+            - binary_sensor.entry_kiosk
+            - binary_sensor.bedroom_kiosk
+            - binary_sensor.front_hallway
+            - binary_sensor.back_hallway
+            - binary_sensor.kitchen
+            - binary_sensor.master_bedroom
+            - binary_sensor.theatre_room
+          states:
+            - state: 'off'
+              class: 'info-background'
+            - state: 'on'
+              class: 'warning-background'
+          state_transitions:
+            - name: On to off
+              from_state: 'on'
+              to_state: 'off'
+              duration: 10
