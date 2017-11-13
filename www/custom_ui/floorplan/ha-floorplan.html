@@ -1,6 +1,6 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.7.13
+  Version: 1.0.7.14
   https://github.com/pkozul/ha-floorplan
 -->
 
@@ -150,19 +150,16 @@
       var configPromise;
 
       if (this._config && this._config.config) {
-        configPromise = this.loadConfig(this._config.config)
-          .then(config => {
-            this.config = config;
-            return Promise.resolve(this.config);
-          });
+        configPromise = this.loadConfig(this._config.config);
       }
       else {
-        this.config = this._config;
-        configPromise = Promise.resolve(this.config);
+        configPromise = Promise.resolve(this._config);
       }
 
       return configPromise
-        .then(() => {
+        .then(config => {
+          this.config = config;
+
           if (!this.config.groups) {
             this.isLoading = false;
             this.warn(`Cannot find 'groups' in floorplan configuration`);
@@ -245,7 +242,6 @@
             })
             .catch(err => {
               this.isLoading = false;
-              this.error('1');
               this.error(err);
             });
         });
