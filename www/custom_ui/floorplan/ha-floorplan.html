@@ -1,11 +1,12 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.7.12
+  Version: 1.0.7.13
   https://github.com/pkozul/ha-floorplan
 -->
 
 <script src="lib/jquery-3.2.1.min.js"></script>
 <script src="lib/moment.min.js"></script>
+<script src="lib/yaml.min.js"></script>
 
 <!-- As documented here for Google Chrome, removes the need for touchstart -->
 <meta name="viewport" content="width=device-width">
@@ -91,6 +92,9 @@
         type: Boolean,
         value: false,
       },
+      _config: {
+        type: Object,
+      },
       config: {
         type: Object,
       },
@@ -143,90 +147,107 @@
     onAttached() {
       window.onerror = this.handleWindowError.bind(this);
 
-      if (!this.config.groups) {
-        this.isLoading = false;
-        this.warn(`Cannot find 'groups' in floorplan configuration`);
-        return;
+      var configPromise;
+
+      if (this._config && this._config.config) {
+        configPromise = this.loadConfig(this._config.config)
+          .then(config => {
+            this.config = config;
+            return Promise.resolve(this.config);
+          });
+      }
+      else {
+        this.config = this._config;
+        configPromise = Promise.resolve(this.config);
       }
 
-      let invalidGroups = this.config.groups.filter(x => x.entities && x.elements);
-      if (invalidGroups.length) {
-        this.isLoading = false;
-        this.warn(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
-        return;
-      }
-
-      invalidGroups = this.config.groups.filter(x => !x.entities && !x.elements);
-      if (invalidGroups.length) {
-        this.isLoading = false;
-        this.warn(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
-        return;
-      }
-
-      this.hass.connection.socket.addEventListener('message', event => {
-        let data = JSON.parse(event.data);
-
-        // Store the time difference between the local web browser and the Home Assistant server
-        if (data.event && data.event.time_fired) {
-          let lastEventFiredTime = moment(data.event.time_fired).toDate();
-          this.timeDifference = moment().diff(moment(lastEventFiredTime), 'milliseconds');
-        }
-      });
-
-      // Build a list of promises that will run 'in parallel' (i.e. load asynchronously)
-      var promises = [];
-
-      promises.push(this.loadFloorPlan());
-
-      if (this.config.stylesheet) {
-        let promise = this.addExternalCss(this.config.stylesheet)
-          .then(() => this.extractCssRules());
-        promises.push(promise);
-      }
-
-      if (this.isOptionEnabled(this.config.pan_zoom)) {
-        let promise = this.loadScript('/local/custom_ui/floorplan/lib/svg-pan-zoom.min.js');
-        promises.push(promise);
-      }
-
-      if (this.isOptionEnabled(this.config.fully_kiosk)) {
-        let promise = this.loadScript('/local/custom_ui/floorplan/lib/fully-kiosk.js');
-        promises.push(promise);
-      }
-
-      return Promise.all(promises) // wait for all promises to complete
+      return configPromise
         .then(() => {
-          let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+          if (!this.config.groups) {
+            this.isLoading = false;
+            this.warn(`Cannot find 'groups' in floorplan configuration`);
+            return;
+          }
 
-          this.isLoading = false;
+          let invalidGroups = this.config.groups.filter(x => x.entities && x.elements);
+          if (invalidGroups.length) {
+            this.isLoading = false;
+            this.warn(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
+            return;
+          }
 
-          this.handleEntities(this.hass.states, true);
+          invalidGroups = this.config.groups.filter(x => !x.entities && !x.elements);
+          if (invalidGroups.length) {
+            this.isLoading = false;
+            this.warn(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
+            return;
+          }
 
-          if (this.config.groups.find(entityGroup => entityGroup.state_transitions)) {
-            setInterval(this.updateStateTransitions.bind(this), 100);
+          this.hass.connection.socket.addEventListener('message', event => {
+            let data = JSON.parse(event.data);
+
+            // Store the time difference between the local web browser and the Home Assistant server
+            if (data.event && data.event.time_fired) {
+              let lastEventFiredTime = moment(data.event.time_fired).toDate();
+              this.timeDifference = moment().diff(moment(lastEventFiredTime), 'milliseconds');
+            }
+          });
+
+          // Build a list of promises that will run 'in parallel' (i.e. load asynchronously)
+          var promises = [];
+
+          promises.push(this.loadFloorPlan());
+
+          if (this.config.stylesheet) {
+            let promise = this.addExternalCss(this.config.stylesheet)
+              .then(() => this.extractCssRules());
+            promises.push(promise);
+          }
+
+          if (this.isOptionEnabled(this.config.pan_zoom)) {
+            let promise = this.loadScript('/local/custom_ui/floorplan/lib/svg-pan-zoom.min.js');
+            promises.push(promise);
           }
 
           if (this.isOptionEnabled(this.config.fully_kiosk)) {
-            this.fullyKiosk = new FullyKiosk(this);
-            this.fullyKiosk.init();
+            let promise = this.loadScript('/local/custom_ui/floorplan/lib/fully-kiosk.js');
+            promises.push(promise);
           }
 
-          // Enable pan / zoom if enabled in config
-          if (this.isOptionEnabled(this.config.pan_zoom)) {
-            let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+          return Promise.all(promises) // wait for all promises to complete
+            .then(() => {
+              let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
 
-            svgPanZoom($(svg)[0], {
-              zoomEnabled: true,
-              controlIconsEnabled: true,
-              fit: true,
-              center: true,
+              this.isLoading = false;
+
+              this.handleEntities(this.hass.states, true);
+
+              if (this.config.groups.find(entityGroup => entityGroup.state_transitions)) {
+                setInterval(this.updateStateTransitions.bind(this), 100);
+              }
+
+              if (this.isOptionEnabled(this.config.fully_kiosk)) {
+                this.fullyKiosk = new FullyKiosk(this);
+                this.fullyKiosk.init();
+              }
+
+              // Enable pan / zoom if enabled in config
+              if (this.isOptionEnabled(this.config.pan_zoom)) {
+                let svg = Polymer.dom(this.$.floorplan).querySelector('svg');
+
+                svgPanZoom($(svg)[0], {
+                  zoomEnabled: true,
+                  controlIconsEnabled: true,
+                  fit: true,
+                  center: true,
+                });
+              }
+            })
+            .catch(err => {
+              this.isLoading = false;
+              this.error('1');
+              this.error(err);
             });
-          }
-        })
-        .catch(err => {
-          this.isLoading = false;
-          this.error('1');
-          this.error(err);
         });
     },
 
@@ -246,6 +267,22 @@
       }
 
       return false;
+    },
+
+    loadConfig(configUrl) {
+      return new Promise((resolve, reject) => {
+        jQuery.ajax({
+          url: configUrl,
+          cache: true,
+          error: function (err) {
+            return reject(new URIError(`${configUrl}: ${err.responseText}`));
+          }.bind(this),
+          success: function (result) {
+            let json = yaml.load(result);
+            return resolve(json);
+          }.bind(this),
+        });
+      });
     },
 
     loadScript(scriptUrl) {
@@ -533,6 +570,10 @@
         if (entityInfo) {
           let entityState = entities[entityId];
 
+          if (isFirstTime) {
+            changedEntityIds.push(entityId);
+          }
+
           if (entityInfo && (entityInfo.lastState !== entityState.state)) {
             console.log(`Entity changed: ${entityId} (${entities[entityId].state})`);
             if (changedEntityIds.indexOf(entityId) < 0) {
@@ -540,7 +581,7 @@
             }
           }
 
-          let isAnyTransitioningEntities = isFirstTime || (this.transitioningEntityIds.size > 0);
+          let isAnyTransitioningEntities = (this.transitioningEntityIds.size > 0);
 
           if (this.config.last_motion_entity && isAnyTransitioningEntities && entityId.startsWith("binary_sensor.") &&
             this.config.last_motion_class && entities[this.config.last_motion_entity]) {
@@ -572,7 +613,7 @@
       return this.handleEntityUpdateDom(entityId, entities)
         .then(() => {
           this.handleEntitySetHoverOver(entityId, entities);
-          this.handleEntityUpdateCss(entityId, entities);
+          this.handleEntityUpdateCss(entityId, entities)
           this.handleEntityUpdateLastMotionCss(entityId, entities);
         });
     },
