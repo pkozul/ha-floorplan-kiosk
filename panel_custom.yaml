@@ -1,0 +1,17 @@
+
+  - name: floorplan
+    sidebar_title: Floorplan
+    sidebar_icon: mdi:home
+    url_path: floorplan
+    config:
+      hide_app_toolbar:
+      config: /local/custom_ui/floorplan/floorplan.yaml
+
+  - name: clock
+    sidebar_title: Alarm Clock
+    sidebar_icon: mdi:alarm
+    url_path: clock
+    config:
+      hide_app_toolbar:
+      config: /local/custom_ui/floorplan/clock.yaml
+
