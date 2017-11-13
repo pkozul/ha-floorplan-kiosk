@@ -1,19 +1,33 @@
-binary_sensor: 
+
+binary_sensor:
+  - platform: mqtt
+    state_topic: dummy/binary_sensor
+    name: Floorplan
 
   - platform: mqtt
-    state_topic: floorplan/kiosk/entry
-    name: Entry Kiosk
+    state_topic: floorplan/kiosk/entry/motion
+    name: Entry Kiosk Motion
     retain: true
 
   - platform: mqtt
-    state_topic: floorplan/kiosk/bedroom
-    name: Bedroom Kiosk
+    state_topic: floorplan/kiosk/entry/plugged
+    name: Entry Kiosk Plugged
+    retain: true
+
+  - platform: mqtt
+    state_topic: floorplan/kiosk/bedroom/motion
+    name: Bedroom Kiosk Motion
+    retain: true
+
+  - platform: mqtt
+    state_topic: floorplan/kiosk/bedroom/plugged
+    name: Bedroom Kiosk Plugged
     retain: true
 
 media_player:
-
-  - platform: tts_floorplan_speaker
+  - platform: floorplan_speaker
     name: Entry Kiosk
 
-  - platform: tts_floorplan_speaker
+  - platform: floorplan_speaker
     name: Bedroom Kiosk
+
