@@ -7,9 +7,8 @@
 #      pan_zoom:
       hide_app_toolbar:
       date_format: DD-MMM-YYYY
+      
       fully_kiosk:
-
-      devices:
 
       groups:
 
