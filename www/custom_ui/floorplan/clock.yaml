@@ -1,0 +1,103 @@
+      name: Clock
+      image: /local/custom_ui/floorplan/clock.svg
+      stylesheet: /local/custom_ui/floorplan/clock.css
+
+#      warnings:
+#      debug:
+#      pan_zoom:
+      hide_app_toolbar:
+      date_format: DD-MMM-YYYY
+      fully_kiosk:
+
+      devices:
+
+      groups:
+
+        - name: Date
+          entities:
+            - sensor.floorplan_date
+          text_template: '${entity.state ? entity.state : "undefined"}'
+          class_template: 'return "static-text-date";'
+
+        - name: text_states
+          entities:
+            - sensor.dark_sky_hourly_summary
+          text_template: '${entity.state ? entity.state : "undefined"}'
+          class_template: 'return "static-text";'
+
+        - name: text_font_date
+          entities:
+            - sensor.clock_date
+            - sensor.clock_day
+          text_template: '${entity.state ? entity.state : "undefined"}'
+          class_template: 'return "static-text-date";'
+
+        - name: text_font_time
+          entities:
+            - sensor.clock_time
+          text_template: '${entity.state ? entity.state : "undefined"}'
+          class_template: 'return "static-text-time";'
+
+        - name: text_font_am_pm
+          entities:
+            - sensor.clock_am_pm
+          text_template: '${entity.state ? entity.state : "undefined"}'
+          class_template: 'return "static-text-am_pm";'
+
+        - name: Camera Images
+          entities:
+            - camera.driveway
+            - camera.wu_doppler_weather
+          camera_image_template: '${entity.attributes.entity_picture}'
+
+        - name: Dark Sky Sensors
+          entities:
+            - entity: sensor.derrimut_dark_sky_icon
+              element: sensor.derrimut_dark_sky_icon_1
+          image_template: '
+            var imageName = "cloudy";
+
+            switch (entity.state) {
+              case "clear-day":
+                imageName = "day";
+                break;
+
+              case "clear-night":
+                imageName = "night";
+                break;
+
+              case "partly-cloudy-day":
+                imageName = "cloudy-day-1";
+                break;
+
+              case "partly-cloudy-night":
+                imageName = "cloudy-night-1";
+                break;
+
+              case "cloudy":
+                imageName = "cloudy";
+                break;
+
+              case "rain":
+                imageName = "rainy-1";
+                break;
+
+              case "sleet":
+                imageName = "";
+                break;
+
+              case "snow":
+                imageName = "snowy-1";
+                break;
+
+              case "wind":
+                imageName = "";
+                break;
+
+              case "fog":
+                imageName = "";
+                break;
+            }
+
+            return "/local/custom_ui/floorplan/images/weather/" + imageName + ".svg";
+            '
