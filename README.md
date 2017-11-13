@@ -58,17 +58,13 @@ media_player:
 
       devices:
 
-        - name: Entry Kiosk
-          address: 88:71:e5:af:d6:12
-          entities:
-            - binary_sensor.entry_kiosk
-            - media_player.entry_kiosk
+fully_kiosk:
 
-        - name: Bedroom Kiosk
-          address: 88:71:e5:af:d6:ad
-          entities:
-            - binary_sensor.bedroom_kiosk
-            - media_player.bedroom_kiosk
+  - name: Entry Kiosk
+    address: 00:FC:8B:4A:D5:CF
+    motion_sensor: binary_sensor.entry_kiosk_motion
+    plugged_sensor: binary_sensor.entry_kiosk_plugged
+    media_player: media_player.entry_kiosk
 ```
 
 7) Restart Home Assistant. The Fully Kiosk device should now be available as a binary sensor, and as a media player.
