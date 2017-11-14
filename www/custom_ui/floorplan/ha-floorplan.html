@@ -1,6 +1,6 @@
 <!--
   Floorplan for Home Assistant
-  Version: 1.0.7.14
+  Version: 1.0.7.15
   https://github.com/pkozul/ha-floorplan
 -->
 
@@ -846,9 +846,24 @@
     },
 
     loadCameraImage(imageUrl, svgElement) {
-      let time = (new Date()).getTime();
-      svgElement.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl + '&time=' + time);
-      //svgElement.onload = (e) => {      };
+      //let time = (new Date()).getTime();
+      //svgElement.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl + '&time=' + time);
+
+      jQuery.ajax({
+        url: imageUrl,
+        cache: false,
+        mimeType: 'text/plain; charset=x-user-defined',
+        processData: false,        
+        error: function (err) {
+          //throw new URIError(`${imageUrl}: ${err.responseText}`);
+        }.bind(this),
+        success: function (result) {
+          let imageData = 'data:image/jpeg;base64,' + this.base64Encode(result);
+          if ($(svgElement).attr('href') !== imageData) {
+            $(svgElement).attr('href', imageData);
+          }
+        }.bind(this),
+      });
     },
 
     loadImage(svgElementInfo, imageUrl, entityId, entityState, groupInfo) {
@@ -894,7 +909,6 @@
             return resolve(embeddedSvg);
           })
           .catch(err => {
-            this.error('2');
             this.error(err);
             return reject(err);
           });
@@ -1297,6 +1311,34 @@
 
     getCacheBuster() {
       return 'cacheBuster=' + (new Date().getTime());
+    },
+
+    base64Encode(str) {
+      var CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      var out = "", i = 0, len = str.length, c1, c2, c3;
+      while (i < len) {
+        c1 = str.charCodeAt(i++) & 0xff;
+        if (i == len) {
+          out += CHARS.charAt(c1 >> 2);
+          out += CHARS.charAt((c1 & 0x3) << 4);
+          out += "==";
+          break;
+        }
+        c2 = str.charCodeAt(i++);
+        if (i == len) {
+          out += CHARS.charAt(c1 >> 2);
+          out += CHARS.charAt(((c1 & 0x3) << 4) | ((c2 & 0xF0) >> 4));
+          out += CHARS.charAt((c2 & 0xF) << 2);
+          out += "=";
+          break;
+        }
+        c3 = str.charCodeAt(i++);
+        out += CHARS.charAt(c1 >> 2);
+        out += CHARS.charAt(((c1 & 0x3) << 4) | ((c2 & 0xF0) >> 4));
+        out += CHARS.charAt(((c2 & 0xF) << 2) | ((c3 & 0xC0) >> 6));
+        out += CHARS.charAt(c3 & 0x3F);
+      }
+      return out;
     },
 
     rgbToHex(rgb) {
