@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.22
+    Version: 1.0.7.23
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -168,8 +168,14 @@
       ((this._config && this._config.config) ? this.loadConfig(this._config.config) : Promise.resolve(this._config))
         .then(config => {
           this.config = config;
+
           this.getLogLevels();
-          this.validateConfig(this.config);
+
+          if (!this.validateConfig(this.config)) {
+            this.isLoading = false;
+            return Promise.resolve();
+          }
+
           return this.loadLibraries()
             .then(() => {
               this.initFullyKiosk();
@@ -454,7 +460,7 @@
       if (!config.groups) {
         return;
       }
-      
+
       let svgElements = $(svg).find('*').toArray();
 
       // Add the last motion entity if required
@@ -1203,27 +1209,41 @@
     },
 
     validateConfig(config) {
-      /*
-      if (!this.config.groups) {
+      let isValid = true;
+
+      if (!config.pages && !config.groups) {
         this.isLoading = false;
-        this.logWarning(`Cannot find 'groups' in floorplan configuration`);
-        return;
+        this.logWarning(`Cannot find 'pages' nor 'groups' in floorplan configuration`);
+        isValid = false;
       }
-   
-      let invalidGroups = this.config.groups.filter(x => x.entities && x.elements);
-      if (invalidGroups.length) {
-        this.isLoading = false;
-        this.logWarning(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
-        return;
+      else {
+        if (config.pages) {
+          if (!config.pages.length) {
+            this.logWarning(`The 'pages' section must contain one or more pages in floorplan configuration`);
+            isValid = false;
+          }
+        }
+        else {
+          if (!config.groups) {
+            this.logWarning(`Cannot find 'groups' in floorplan configuration`);
+            isValid = false;
+          }
+
+          let invalidGroups = config.groups.filter(x => x.entities && x.elements);
+          if (invalidGroups.length) {
+            this.logWarning(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
+            isValid = false;
+          }
+
+          invalidGroups = config.groups.filter(x => !x.entities && !x.elements);
+          if (invalidGroups.length) {
+            this.logWarning(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
+            isValid = false;
+          }
+        }
       }
-   
-      invalidGroups = this.config.groups.filter(x => !x.entities && !x.elements);
-      if (invalidGroups.length) {
-        this.isLoading = false;
-        this.logWarning(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
-        return;
-      }
-      */
+
+      return isValid;
     },
 
     localToServerMoment(localMoment) {
