@@ -1,9 +1,9 @@
 <!--
-  Floorplan for Home Assistant
-  Version: 1.0.7.20
-  By Petar Kozul
-  https://github.com/pkozul/ha-floorplan
--->
+    Floorplan for Home Assistant
+    Version: 1.0.7.21
+    By Petar Kozul
+    https://github.com/pkozul/ha-floorplan
+  -->
 
 <script src="lib/jquery-3.2.1.min.js"></script>
 <script src="lib/moment.min.js"></script>
@@ -26,19 +26,33 @@
         overflow: hidden;
       }
 
-      #errors {
+      #log {
+        max-height: 150px;
+        overflow: auto;
+        background-color: #eee;
+        display: none;
+        padding: 10px;
+      }
+
+      #log ul {
+        list-style-type: none;
+        padding-left: 0px;
+      }
+
+      .error {
         color: #FF0000;
-        display: none;
       }
 
-      #warnings {
+      .warning {
         color: #FF851B;
-        display: none;
       }
 
-      #debug {
+      .info {
+        color: #0000FF;
+      }
+
+      .debug {
         color: #000000;
-        display: none;
       }
     </style>
 
@@ -48,15 +62,8 @@
       </div>
     </template>
 
-    <div id="errors">
-      <ul></ul>
-    </div>
-
-    <div id="warnings">
-      <ul></ul>
-    </div>
-
-    <div id="debug">
+    <div id="log">
+      <a href="#" onclick="$(this).siblings('ul').html('').parent().css('display', 'none');">Clear log</a>
       <ul></ul>
     </div>
 
@@ -108,11 +115,11 @@
         value: undefined,
       },
       pageInfos: {
-        type: Object,
+        type: Array,
         value: () => { return []; },
       },
       entityInfos: {
-        type: Object,
+        type: Array,
         value: () => { return []; },
       },
       elementInfos: {
@@ -124,12 +131,16 @@
         value: () => { return []; },
       },
       entityTransitions: {
-        type: Object,
+        type: Array,
         value: () => { return []; },
       },
       lastMotionConfig: {
-        type: Object,
-        value: () => { return {}; }
+        type: Array,
+        value: () => { return []; }
+      },
+      logLevels: {
+        type: Array,
+        value: () => { return []; },
       },
     },
 
@@ -157,44 +168,64 @@
       ((this._config && this._config.config) ? this.loadConfig(this._config.config) : Promise.resolve(this._config))
         .then(config => {
           this.config = config;
+          this.getLogLevels();
           this.validateConfig(this.config);
-          this.loadLibraries()
+          return this.loadLibraries()
             .then(() => {
               this.initFullyKiosk();
+              return this.config.pages ? this.initMultiPage() : this.initStandard();
+            });
+        })
+        .catch(error => {
+          this.isLoading = false;
+          this.handleError(error);
+        });
+    },
 
-              if (this.config.pages) {
-                this.loadPages()
-                  .then(() => {
-                    this.isLoading = false;
-                    this.handleEntities(this.hass.states, true);
-                    this.initPageDisplay();
-                  })
-                  .catch(err => {
-                    this.isLoading = false;
-                    this.error(err);
-                  });
-              }
-              else {
-                return this.loadSvg(this.config.image)
-                  .then((svg) => {
-                    this.config.svg = svg;
-                    return this.loadStyleSheet(this.config.stylesheet)
-                      .then(() => {
-                        return Promise.resolve(this.initSvg(svg, this.config))
-                          .then(() => {
-                            this.isLoading = false;
-                            this.handleEntities(this.hass.states, true);
-                            this.initPageDisplay();
-                          })
-                          .catch(err => {
-                            this.isLoading = false;
-                            this.error(err);
-                          });
-                      });
-                  });
-              }
+    initMultiPage() {
+      return this.loadPages()
+        .then(() => {
+          this.isLoading = false;
+          return this.handleEntities(this.hass.states, true)
+            .then(() => {
+              this.initPageDisplay();
+              return Promise.resolve();
             });
         });
+    },
+
+    initStandard() {
+      return this.loadSvg(this.config.image)
+        .then((svg) => {
+          this.config.svg = svg;
+          return this.loadStyleSheet(this.config.stylesheet)
+            .then(() => {
+              return Promise.resolve(this.initSvg(svg, this.config))
+                .then(() => {
+                  this.isLoading = false;
+                  return this.handleEntities(this.hass.states, true)
+                    .then(() => {
+                      this.initPageDisplay();
+                      return Promise.resolve();
+                    });
+                })
+            });
+        });
+    },
+
+    getLogLevels() {
+      if (!this.config.log_level) {
+        return;
+      }
+
+      let allLogLevels = {
+        error: ['error'],
+        warning: ['error', 'warning'],
+        info: ['error', 'warning', 'info'],
+        debug: ['error', 'warning', 'info', 'debug'],
+      };
+
+      this.logLevels = allLogLevels[this.config.log_level.toLowerCase()];
     },
 
     /***************************************************************************************************************************/
@@ -230,7 +261,7 @@
           return resolve();
         };
         script.onerror = (err) => {
-          return reject(new URIError(`Cannot load script '${err.target.src}'`));
+          reject(new URIError(`${err.target.src}`));
         };
 
         Polymer.dom(this.root).appendChild(script);
@@ -238,14 +269,18 @@
     },
 
     loadPages() {
-      let promises = this.config.pages.map(pageConfigUrl => this.loadPage(pageConfigUrl));
+      let defaultPageConfigUrl = this.config.pages.length ? this.config.pages[0] : undefined; // default page
+
+      let promises = this.config.pages.map(pageConfigUrl =>
+        this.loadPage(pageConfigUrl, (pageConfigUrl === defaultPageConfigUrl)));
       return promises.length ? Promise.all(promises) : Promise.resolve();
     },
 
-    loadPage(pageConfigUrl) {
+    loadPage(pageConfigUrl, isDefault) {
       return this.loadConfig(pageConfigUrl)
         .then((pageConfig) => {
           let pageInfo = this.createPageInfo(pageConfig);
+          pageInfo.isDefault = isDefault;
           return this.loadSvg(pageInfo.config.image)
             .then((svg) => {
               pageInfo.svg = svg;
@@ -257,7 +292,7 @@
         });
     },
 
-    createPageInfo(pageConfig) {
+    createPageInfo(pageConfig, isDefault) {
       let pageInfo = { config: pageConfig };
 
       // Merge the page's groups with the main config's groups
@@ -284,7 +319,7 @@
             return this.resolve();
           }
           else {
-            return this.reject(new URIError(`Cannot load stylesheet: ${stylesheetUrl}`));
+            reject(new URIError(`${stylesheetUrl}`));
           }
         }.bind({ instance: this, resolve: resolve, reject: reject }));
       });
@@ -370,10 +405,6 @@
 
           return Promise.resolve(embeddedSvg);
         })
-        .catch(err => {
-          this.error(err);
-          return Promise.reject(err);
-        });
     },
 
     /***************************************************************************************************************************/
@@ -403,13 +434,10 @@
       if (this.config.pages) {
         Object.keys(this.pageInfos).map(key => {
           let pageInfo = this.pageInfos[key];
-          $(pageInfo.svg).css('display', 'none');
-          $(pageInfo.svg).css('opacity', 1);
-        });
 
-        // Show the first page
-        let pageInfo = this.pageInfos[Object.keys(this.pageInfos)[0]];
-        $(pageInfo.svg).css('display', 'initial');
+          $(pageInfo.svg).css('opacity', 1);
+          $(pageInfo.svg).css('display', pageInfo.isDefault ? 'initial' : 'none'); // Show the first page
+        });
       }
       else {
         // Show the SVG
@@ -461,7 +489,7 @@
             }
           }
           else {
-            this.warn(`Cannot find '${elementId}' in SVG file`);
+            this.logWarning(`Cannot find '${elementId}' in SVG file`);
           }
         }
       }
@@ -480,7 +508,7 @@
               }
             }
             else {
-              this.warn(`Cannot find '${entityId}' in HA group configuration`);
+              this.logWarning(`Cannot find '${entityId}' in HA group configuration`);
             }
           }
         }
@@ -494,7 +522,7 @@
               targetEntities.push({ entityId: entityId, elementId: entityId });
             }
             else {
-              this.warn(`Cannot find '${entityId}' in HA group configuration`);
+              this.logWarning(`Cannot find '${entityId}' in HA group configuration`);
             }
           }
 
@@ -505,7 +533,7 @@
               targetEntities.push({ entityId: entityObject.entity, elementId: entityObject.element });
             }
             else {
-              this.warn(`Cannot find '${entityObject.entity}' in HA group configuration`);
+              this.logWarning(`Cannot find '${entityObject.entity}' in HA group configuration`);
             }
           }
         }
@@ -525,7 +553,7 @@
 
           let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
           if (!svgElement) {
-            this.warn(`Cannot find element '${elementId}' in SVG file`);
+            this.logWarning(`Cannot find element '${elementId}' in SVG file`);
             continue;
           }
 
@@ -631,13 +659,13 @@
     },
 
     addClass(entityId, svgElement, className) {
-      this.log('CLASS', `${entityId} (adding class: ${className})`);
+      this.logDebug('CLASS', `${entityId} (adding class: ${className})`);
 
       if ($(svgElement).hasClass('ha-leave-me-alone')) {
         return;
       }
 
-      //this.log(`Adding class '${className}' to '${entityId}'`);
+      //this.logDebug(`Adding class '${className}' to '${entityId}'`);
       if (!$(svgElement).hasClass(className)) {
         $(svgElement).addClass(className);
 
@@ -661,9 +689,9 @@
 
     removeClasses(entityId, svgElement, classes) {
       for (className of classes) {
-        this.log('CLASS', `${entityId} (removing class: ${className})`);
+        this.logDebug('CLASS', `${entityId} (removing class: ${className})`);
 
-        //this.log(`Removing class '${className}' from '${entityId}'`);
+        //this.logDebug(`Removing class '${className}' from '${entityId}'`);
         if ($(svgElement).hasClass(className)) {
           $(svgElement).removeClass(className);
 
@@ -744,7 +772,7 @@
           let entityState = entities[entityId];
 
           if (isInitialLoad) {
-            this.log('STATE', `${entityId}: ${entities[entityId].state} (initial load)`);
+            this.logDebug('STATE', `${entityId}: ${entities[entityId].state} (initial load)`);
             if (changedEntityIds.indexOf(entityId) < 0) {
               changedEntityIds.push(entityId);
             }
@@ -754,7 +782,7 @@
             let newState = entityState.state;
 
             if (entityState.last_changed !== entityInfo.lastState.last_changed) {
-              this.log('STATE', `${entityId}: ${newState} (last changed ${moment(entityInfo.lastState.last_changed).format("DD-MMM-YYYY HH:mm:ss")})`);
+              this.logDebug('STATE', `${entityId}: ${newState} (last changed ${moment(entityInfo.lastState.last_changed).format("DD-MMM-YYYY HH:mm:ss")})`);
               if (changedEntityIds.indexOf(entityId) < 0) {
                 changedEntityIds.push(entityId);
               }
@@ -765,7 +793,7 @@
 
               if (newAttributesText !== oldAttributesText) {
                 if (entityId.indexOf('media_player') < 0) {
-                  this.log('STATE', `${entityId}: attributes (last updated ${moment(entityInfo.lastState.last_changed).format("DD-MMM-YYYY HH:mm:ss")})`);
+                  this.logDebug('STATE', `${entityId}: attributes (last updated ${moment(entityInfo.lastState.last_changed).format("DD-MMM-YYYY HH:mm:ss")})`);
                   if (changedEntityIds.indexOf(entityId) < 0) {
                     changedEntityIds.push(entityId);
                   }
@@ -778,13 +806,13 @@
                 let friendlyName = entityState.attributes.friendly_name;
 
                 if (friendlyName === newLastMotionState) {
-                  this.log('LAST_MOTION', `${entityId} (new)`);
+                  this.logDebug('LAST_MOTION', `${entityId} (new)`);
                   if (changedEntityIds.indexOf(entityId) < 0) {
                     changedEntityIds.push(entityId);
                   }
                 }
                 else if (friendlyName === oldLastMotionState) {
-                  this.log('LAST_MOTION', `${entityId} (old)`);
+                  this.logDebug('LAST_MOTION', `${entityId} (old)`);
                   if (changedEntityIds.indexOf(entityId) < 0) {
                     changedEntityIds.push(entityId);
                   }
@@ -794,13 +822,12 @@
           }
         }
       }
-      let promiseChain = changedEntityIds.reduce((func, entityId) => {
-        return func.then(() => this.handleEntity(entityId, entities, isInitialLoad));
-      }, Promise.resolve());
 
-      return promiseChain.then(() => {
-        //this.log('Done!');
-      });
+      let promises = changedEntityIds.map(entityId => this.handleEntity(entityId, entities, isInitialLoad));
+      return Promise.all(promises)
+        .catch(error => {
+          this.handleError(error);
+        });
     },
 
     handleEntity(entityId, entities, isInitialLoad) {
@@ -887,13 +914,19 @@
           clearInterval(groupInfo.cameraImageLoader);
         }
 
-        this.loadCameraImage(imageUrl, svgElement);
+        this.loadCameraImage(imageUrl, svgElement)
+          .catch(error => {
+            this.handleError(error);
+          });
 
         if (groupInfo.group.refresh_interval) {
           let refreshInterval = parseInt(groupInfo.group.refresh_interval);
 
           groupInfo.cameraImageLoader = setInterval((imageUrl, svgElement) => {
-            this.loadCameraImage(imageUrl, svgElement);
+            this.loadCameraImage(imageUrl, svgElement)
+              .catch(error => {
+                this.handleError(error);
+              });
           }, refreshInterval * 1000, imageUrl, svgElement);
         }
       }
@@ -989,7 +1022,7 @@
                 if (remaining > 0) {
                   let transition = this.entityTransitions[entityId];
                   if (!transition) {
-                    this.log('TRANSITION', `${entityId} (created)`);
+                    this.logDebug('TRANSITION', `${entityId} (created)`);
                     transition = {
                       entityId: entityId,
                       svgElementInfo: svgElementInfo,
@@ -1021,13 +1054,13 @@
                       transition.endMoment.add(transition.duration, 'seconds');
                     }
 
-                    this.log('TRANSITION', `${transition.entityId}: (start)`);
+                    this.logDebug('TRANSITION', `${transition.entityId}: (start)`);
                     transition.isActive = true;
                     this.handleEntityTransition(transition);
                   }
                   else {
                     // If the transition is currently running, it will be extended with latest start / end times
-                    this.log('TRANSITION', `${transition.entityId} (continue)`);
+                    this.logDebug('TRANSITION', `${transition.entityId} (continue)`);
                   }
                 }
                 else {
@@ -1078,7 +1111,7 @@
 
           // Remove any obsolete classes from the entity
           if (obsoleteClasses.length) {
-            //this.log(`${entityId}: Removing obsolete classes: ${obsoleteClasses.join(', ')}`);
+            //this.logDebug(`${entityId}: Removing obsolete classes: ${obsoleteClasses.join(', ')}`);
             this.removeClasses(entityId, svgElement, obsoleteClasses);
           }
 
@@ -1087,7 +1120,7 @@
             if (hasTransitionConfig && !wasTransitionApplied) {
               let transition = this.entityTransitions[entityId];
               if (transition && transition.isActive) {
-                this.log('TRANSITION', `${transition.entityId} (cancel)`);
+                this.logDebug('TRANSITION', `${transition.entityId} (cancel)`);
                 transition.isActive = false;
               }
             }
@@ -1109,12 +1142,12 @@
 
       let ratio = isExpired ? 1 : (nowMoment - transition.startMoment) / (transition.endMoment - transition.startMoment);
       let color = this.getTransitionColor(transition.fromColor, transition.toColor, ratio);
-      //this.log('TRANSITION', `${transition.entityId} (ratio: ${ratio}, element: ${transition.svgElementInfo.svgElement.id}, fill: ${color})`);
+      //this.logDebug('TRANSITION', `${transition.entityId} (ratio: ${ratio}, element: ${transition.svgElementInfo.svgElement.id}, fill: ${color})`);
       transition.svgElementInfo.svgElement.style.fill = color;
 
       if (isExpired) {
         transition.isActive = false;
-        this.log('TRANSITION', `${transition.entityId} (end)`);
+        this.logDebug('TRANSITION', `${transition.entityId} (end)`);
         return;
       }
 
@@ -1139,13 +1172,13 @@
           if (entities[this.lastMotionConfig.entity] &&
             (entityState.attributes.friendly_name === entities[this.lastMotionConfig.entity].state)) {
             if (!$(svgElement).hasClass(this.lastMotionConfig.class)) {
-              //this.log(`${entityId}: Adding last motion class '${this.lastMotionConfig.class}'`);
+              //this.logDebug(`${entityId}: Adding last motion class '${this.lastMotionConfig.class}'`);
               $(svgElement).addClass(this.lastMotionConfig.class);
             }
           }
           else {
             if ($(svgElement).hasClass(this.lastMotionConfig.class)) {
-              //this.log(`${entityId}: Removing last motion class '${this.lastMotionConfig.class}'`);
+              //this.logDebug(`${entityId}: Removing last motion class '${this.lastMotionConfig.class}'`);
               $(svgElement).removeClass(this.lastMotionConfig.class);
             }
           }
@@ -1169,21 +1202,21 @@
       /*
       if (!this.config.groups) {
         this.isLoading = false;
-        this.warn(`Cannot find 'groups' in floorplan configuration`);
+        this.logWarning(`Cannot find 'groups' in floorplan configuration`);
         return;
       }
-  
+   
       let invalidGroups = this.config.groups.filter(x => x.entities && x.elements);
       if (invalidGroups.length) {
         this.isLoading = false;
-        this.warn(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
+        this.logWarning(`A group cannot contain both 'entities' and 'elements' in floorplan configuration`);
         return;
       }
-  
+   
       invalidGroups = this.config.groups.filter(x => !x.entities && !x.elements);
       if (invalidGroups.length) {
         this.isLoading = false;
-        this.warn(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
+        this.logWarning(`A group must contain either 'entities' or 'elements' in floorplan configuration`);
         return;
       }
       */
@@ -1325,21 +1358,47 @@
     /***************************************************************************************************************************/
 
     log(level, message) {
-      console.log(`${moment().format("DD-MM-YYYY HH:mm:ss")} ${level} ${message}`);
-    },
-
-    error(message) {
-      let errors = Polymer.dom(this.$.errors).node;
-      $(errors).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
-      $(errors).css('display', 'block');
-    },
-
-    warn(message) {
-      if (this.isOptionEnabled(this.config.warnings)) {
-        let warnings = Polymer.dom(this.$.warnings).node;
-        $(warnings).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
-        $(warnings).css('display', 'block');
+      if (!this.config) {
+        // Always log messages before the config has been loaded
       }
+      else if (!this.logLevels || !this.logLevels.length || (this.logLevels.indexOf(level) < 0)) {
+        return;
+      }
+
+      let text = `${moment().format("DD-MM-YYYY HH:mm:ss")} ${level.toUpperCase()} ${message}`;
+      console.log(text);
+
+      let log = Polymer.dom(this.$.log).node;
+      $(log).find('ul').prepend(`<li class="${level}">${text}</li>`)
+      $(log).css('display', 'block');
+    },
+
+    handleError(error) {
+      let message = error;
+      if (error.stack) {
+        message = `${error.stack}`;
+      }
+      else if (error.message) {
+        message = `${error.message}`;
+      }
+      
+      this.log('error', message);
+    },
+
+    logError(message) {
+      this.log('error', message);
+    },
+
+    logWarning(message) {
+      this.log('warning', message);
+    },
+
+    logInfo(message) {
+      this.log('info', message);
+    },
+
+    logDebug(area, message) {
+      this.log('debug', `${area} ${message}`);
     },
 
     debug(message, isForce) {
@@ -1351,8 +1410,10 @@
     },
 
     handleWindowError(msg, url, lineNo, columnNo, error) {
+      this.isLoading = false;
+
       if (msg.toLowerCase().indexOf("script error") >= 0) {
-        this.error('Script error: See browser console for detail');
+        this.logError('Script error: See browser console for detail');
       }
       else {
         let message = [
@@ -1362,7 +1423,7 @@
           'Error: ' + JSON.stringify(error)
         ].join('<br>');
 
-        this.error(message);
+        this.logError(message);
       }
 
       return false;
