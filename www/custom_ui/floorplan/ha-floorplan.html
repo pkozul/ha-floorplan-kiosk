@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.21
+    Version: 1.0.7.22
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -451,6 +451,10 @@
     /***************************************************************************************************************************/
 
     initSvg(svg, config) {
+      if (!config.groups) {
+        return;
+      }
+      
       let svgElements = $(svg).find('*').toArray();
 
       // Add the last motion entity if required
@@ -1357,20 +1361,24 @@
     /* Logging / error handling functions
     /***************************************************************************************************************************/
 
-    log(level, message) {
-      if (!this.config) {
-        // Always log messages before the config has been loaded
+    handleWindowError(msg, url, lineNo, columnNo, error) {
+      this.isLoading = false;
+
+      if (msg.toLowerCase().indexOf("script error") >= 0) {
+        this.logError('Script error: See browser console for detail');
       }
-      else if (!this.logLevels || !this.logLevels.length || (this.logLevels.indexOf(level) < 0)) {
-        return;
+      else {
+        let message = [
+          msg,
+          'URL: ' + url,
+          'Line: ' + lineNo + ', column: ' + columnNo,
+          'Error: ' + JSON.stringify(error)
+        ].join('<br>');
+
+        this.logError(message);
       }
 
-      let text = `${moment().format("DD-MM-YYYY HH:mm:ss")} ${level.toUpperCase()} ${message}`;
-      console.log(text);
-
-      let log = Polymer.dom(this.$.log).node;
-      $(log).find('ul').prepend(`<li class="${level}">${text}</li>`)
-      $(log).css('display', 'block');
+      return false;
     },
 
     handleError(error) {
@@ -1381,7 +1389,7 @@
       else if (error.message) {
         message = `${error.message}`;
       }
-      
+
       this.log('error', message);
     },
 
@@ -1401,32 +1409,20 @@
       this.log('debug', `${area} ${message}`);
     },
 
-    debug(message, isForce) {
-      if (this.isOptionEnabled(this.config.debug) || isForce) {
-        let debug = Polymer.dom(this.$.debug).node;
-        $(debug).find('ul').append(`<li>${moment().format('YYYY-MM-DD HH:mm:ss')} ${message}</li>`)
-        $(debug).css('display', 'block');
+    log(level, message) {
+      let text = `${moment().format("DD-MM-YYYY HH:mm:ss")} ${level.toUpperCase()} ${message}`;
+      console.log(text);
+
+      if (!this.config) {
+        // Always log messages before the config has been loaded
       }
-    },
-
-    handleWindowError(msg, url, lineNo, columnNo, error) {
-      this.isLoading = false;
-
-      if (msg.toLowerCase().indexOf("script error") >= 0) {
-        this.logError('Script error: See browser console for detail');
-      }
-      else {
-        let message = [
-          msg,
-          'URL: ' + url,
-          'Line: ' + lineNo + ', column: ' + columnNo,
-          'Error: ' + JSON.stringify(error)
-        ].join('<br>');
-
-        this.logError(message);
+      else if (!this.logLevels || !this.logLevels.length || (this.logLevels.indexOf(level) < 0)) {
+        return;
       }
 
-      return false;
+      let log = Polymer.dom(this.$.log).node;
+      $(log).find('ul').prepend(`<li class="${level}">${text}</li>`)
+      $(log).css('display', 'block');
     },
 
     /***************************************************************************************************************************/
