@@ -14,7 +14,7 @@ if (typeof window.FullyKiosk !== 'function') {
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
-      this.logInfo(`Full Kiosk v${this.version}`);
+      this.logInfo(`Fully Kiosk v${this.version}`);
     }
 
     init() {
