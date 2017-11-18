@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.29
+    Version: 1.0.7.30
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.29',
+        value: '1.0.7.30',
       },
       hass: {
         type: Object,
@@ -171,7 +171,7 @@
 
     onReady() {
       this.handleEntitiesDebounced = this.debounce(() => {
-        this.handleEntities(this.hass.states);
+        return this.handleEntities(this.hass.states);
       }, 100);
     },
 
@@ -791,6 +791,9 @@
             return Promise.resolve(changedEntityIds);
           });
       }
+      else {
+        return Promise.resolve();
+      }
     },
 
     getChangedEntities(entities, isInitialLoad) {
@@ -1257,13 +1260,13 @@
             isValid = false;
           }
 
-          let invalidRules = config.rules.filter(x => x.entities && x.elements);
+          let invalidRules = config.rules.filter(x => (x.entity || x.entities) && (x.element || x.elements));
           if (invalidRules.length) {
             this.logWarning(`A rule cannot contain both 'entities' and 'elements' in floorplan configuration`);
             isValid = false;
           }
 
-          invalidRules = config.rules.filter(x => !x.entities && !x.elements);
+          invalidRules = config.rules.filter(x => !(x.entity || x.entities) && !(x.element || x.elements));
           if (invalidRules.length) {
             this.logWarning(`A rule must contain either 'entities' or 'elements' in floorplan configuration`);
             isValid = false;
