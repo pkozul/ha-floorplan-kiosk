@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.30
+    Version: 1.0.7.31
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.30',
+        value: '1.0.7.31',
       },
       hass: {
         type: Object,
@@ -184,9 +184,8 @@
         .then(config => {
           this.config = config;
 
-          this.logInfo(`Floorplan v${this.version}`);
-
           this.getLogLevels();
+          this.logInfo(`Floorplan v${this.version}`);
 
           if (!this.validateConfig(this.config)) {
             this.isLoading = false;
