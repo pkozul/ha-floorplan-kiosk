@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.26
+    Version: 1.0.7.27
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.26',
+        value: '1.0.7.27',
       },
       hass: {
         type: Object,
@@ -385,7 +385,7 @@
         });
     },
 
-    loadImage(loadImageInfo) {
+    loadSvgImage(loadImageInfo) {
       let svgElementInfo = loadImageInfo.svgElementInfo;
 
       return this.getResource(loadImageInfo.imageUrl, true)
@@ -586,7 +586,7 @@
 
           let originalBBox = svgElement.getBBox();
 
-          if (entityGroup.camera_image_template) {
+          if (entityGroup.entity_picture_template) {
             svgElement = this.replaceWithImage(svgElement);
           }
           else if (entityGroup.image_template) {
@@ -887,13 +887,13 @@
           if ($(svgElementInfo.svgElement).is('text')) {
             this.handleEntityUpdateText(entityState, groupInfo, svgElementInfo, entities);
           }
-          else if (groupInfo.group.camera_image_template) {
-            this.handleEntityUpdateCameraImage(entityState, groupInfo, svgElementInfo, entities);
+          else if (groupInfo.group.entity_picture_template) {
+            this.handleEntityUpdateEntityPicture(entityState, groupInfo, svgElementInfo, entities);
           }
           else if (groupInfo.group.image_template) {
             let loadImageInfo = this.handleEntityDetermineSvgImage(entityState, groupInfo, svgElementInfo, entities);
             if (loadImageInfo) {
-              loadImagePromises.push(this.loadImage(loadImageInfo));
+              loadImagePromises.push(this.loadSvgImage(loadImageInfo));
             }
           }
         }
@@ -933,10 +933,10 @@
       }
     },
 
-    handleEntityUpdateCameraImage(entityState, groupInfo, svgElementInfo, entities) {
+    handleEntityUpdateEntityPicture(entityState, groupInfo, svgElementInfo, entities) {
       let svgElement = svgElementInfo.svgElement;
 
-      imageUrl = this.evaluate(groupInfo.group.camera_image_template, entityState, entities);
+      imageUrl = this.evaluate(groupInfo.group.entity_picture_template, entityState, entities);
       if (imageUrl && (groupInfo.imageUrl !== imageUrl)) {
         groupInfo.imageUrl = imageUrl;
 
