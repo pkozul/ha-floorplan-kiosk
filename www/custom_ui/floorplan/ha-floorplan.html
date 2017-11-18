@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.27
+    Version: 1.0.7.28
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.27',
+        value: '1.0.7.28',
       },
       hass: {
         type: Object,
@@ -488,8 +488,12 @@
         this.entityInfos[config.last_motion.entity] = entityInfo;
       }
 
-      let elementGroups = config.groups.filter(x => x.elements);
+      let elementGroups = config.groups.filter(x => x.element || x.elements);
       for (let elementGroup of elementGroups) {
+        if (elementGroup.element) {
+          elementGroup.elements = [ elementGroup.element ];
+        }
+
         for (let elementId of elementGroup.elements) {
           let svgElement = $(svg).find(`[id="${elementId}"]`);
 
@@ -521,7 +525,7 @@
         }
       }
 
-      let entityGroups = config.groups.filter(x => x.entities);
+      let entityGroups = config.groups.filter(x => x.entity || x.entities);
       for (let entityGroup of entityGroups) {
         let targetEntities = [];
 
@@ -541,6 +545,10 @@
         }
 
         // HA entities treated as is
+        if (entityGroup.entity) {
+          entityGroup.entities = [ entityGroup.entity ];
+        }
+
         if (entityGroup.entities) {
           let entityIds = entityGroup.entities.filter(x => (typeof x === 'string'));
           for (let entityId of entityIds) {
