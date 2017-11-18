@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.31
+    Version: 1.0.7.32
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.31',
+        value: '1.0.7.32',
       },
       hass: {
         type: Object,
@@ -538,7 +538,7 @@
               }
             }
             else {
-              this.logWarning(`Cannot find '${entityId}' in HA rule configuration`);
+              this.logWarning(`Cannot find '${entityId}' in Home Assistant groups`);
             }
           }
         }
@@ -556,7 +556,7 @@
               targetEntities.push({ entityId: entityId, elementId: entityId });
             }
             else {
-              this.logWarning(`Cannot find '${entityId}' in HA rule configuration`);
+              this.logWarning(`Cannot find '${entityId}' in Home Assistant entities`);
             }
           }
 
@@ -567,7 +567,7 @@
               targetEntities.push({ entityId: entityObject.entity, elementId: entityObject.element });
             }
             else {
-              this.logWarning(`Cannot find '${entityObject.entity}' in HA rule configuration`);
+              this.logWarning(`Cannot find '${entityObject.entity}' in Home Assistant entities`);
             }
           }
         }
