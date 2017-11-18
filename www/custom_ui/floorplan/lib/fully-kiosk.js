@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.18
+Version: 1.0.7.20
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -9,17 +9,17 @@ https://github.com/pkozul/ha-floorplan
 if (typeof window.FullyKiosk !== 'function') {
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.18';
+      this.version = '1.0.7.20';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
-
-      this.logInfo(`Fully Kiosk v${this.version}`);
     }
 
     init() {
+      this.logInfo(`Fully Kiosk v${this.version}`);
+
       if (typeof fully === "undefined") {
-        //this.logError("Fully Kiosk not detected");
+        this.logInfo(`Fully Kiosk application is not running on this device`);
         return;
       }
 
@@ -201,7 +201,16 @@ if (typeof window.FullyKiosk !== 'function') {
         }
 
         if ((event.data.domain === 'media_player') && (event.data.service === 'play_media')) {
-          let targetEntityId = event.data.service_data.entity_id.find(entityId => (entityId === this.kioskInfo.mediaPlayerEntityId));
+          let targetEntityId;
+          let serviceEntityId = event.data.service_data.entity_id;
+
+          if (Array.isArray(serviceEntityId)) {
+            targetEntityId = serviceEntityId.find(entityId => (entityId === this.kioskInfo.mediaPlayerEntityId));
+          }
+          else {
+            targetEntityId = (serviceEntityId === this.kioskInfo.mediaPlayerEntityId) ? serviceEntityId : undefined;
+          }
+
           if (targetEntityId) {
             this.logDebug('FULLY_KIOSK', `Playing media: ${event.data.service_data.media_content_id}`);
             this.playMedia(event.data.service_data.media_content_id);
