@@ -10,7 +10,7 @@ from homeassistant.components.media_player import (
     PLATFORM_SCHEMA,
     MediaPlayerDevice)
 from homeassistant.const import (
-    CONF_NAME, STATE_OFF, STATE_PLAYING)
+    CONF_NAME, STATE_IDLE, STATE_PLAYING)
 import homeassistant.helpers.config_validation as cv
 
 import logging
@@ -74,7 +74,7 @@ class FloorplanSpeakerDevice(MediaPlayerDevice):
     def state(self):
         """Return the state of the device."""
         if self._is_standby:
-            return STATE_OFF
+            return STATE_IDLE
         else:
             return STATE_PLAYING
 
