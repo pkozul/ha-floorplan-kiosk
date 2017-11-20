@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.24
+Version: 1.0.7.25
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -9,7 +9,7 @@ https://github.com/pkozul/ha-floorplan
 if (typeof window.FullyKiosk !== 'function') {
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.24';
+      this.version = '1.0.7.25';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -63,6 +63,7 @@ if (typeof window.FullyKiosk !== 'function') {
 
       this.sendMotionState();
       this.sendPluggedState();
+      this.sendMediaPlayerState();
     }
 
     addEventHandlers() {
@@ -225,15 +226,13 @@ if (typeof window.FullyKiosk !== 'function') {
     }
 
     playMedia(mediaUrl) {
-      if (mediaUrl) {
-        this.audio.src = mediaUrl;
-      }
+      this.audio.src = mediaUrl;
 
       this.logDebug('FULLY_KIOSK', `Playing media: ${this.audio.src}`);
       this.audio.play();
     }
 
-    pauseMedia(mediaUrl) {
+    pauseMedia() {
       this.logDebug('FULLY_KIOSK', `Pausing media: ${this.audio.src}`);
       this.audio.pause();
     }
