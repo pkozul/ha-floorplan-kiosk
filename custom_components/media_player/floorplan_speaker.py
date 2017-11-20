@@ -73,3 +73,12 @@ class FloorplanSpeakerDevice(MediaPlayerDevice):
 
     def play_media(self, media_type, media_id, **kwargs):
         _LOGGER.info('play_media: %s', media_id)
+
+    def media_play(self):
+        _LOGGER.info('media_play')
+
+    def media_pause(self):
+        _LOGGER.info('media_pause')
+
+    def media_stop(self):
+        _LOGGER.info('media_stop')
