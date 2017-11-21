@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.36
+    Version: 1.0.7.37
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.36',
+        value: '1.0.7.37',
       },
       hass: {
         type: Object,
@@ -208,16 +208,16 @@
       return this.loadPages()
         .then(() => {
           this.isLoading = false;
+          this.initPageDisplay();
           return this.handleEntities(true)
             .then(() => {
-              this.initPageDisplay();
               return Promise.resolve();
             });
         });
     },
 
     initStandard() {
-      return this.loadSvg(this.config.image)
+      return this.loadFloorplanSvg(this.config.image)
         .then((svg) => {
           this.config.svg = svg;
           return this.loadStyleSheet(this.config.stylesheet)
@@ -225,9 +225,9 @@
               return Promise.resolve(this.initSvg(svg, this.config))
                 .then(() => {
                   this.isLoading = false;
+                  this.initPageDisplay();
                   return this.handleEntities(true)
                     .then(() => {
-                      this.initPageDisplay();
                       return Promise.resolve();
                     });
                 })
@@ -303,7 +303,7 @@
         .then((pageConfig) => {
           let pageInfo = this.createPageInfo(pageConfig);
           pageInfo.isDefault = isDefault;
-          return this.loadSvg(pageInfo.config.image)
+          return this.loadFloorplanSvg(pageInfo.config.image)
             .then((svg) => {
               pageInfo.svg = svg;
               return this.loadStyleSheet(pageInfo.config.stylesheet)
@@ -347,7 +347,7 @@
       });
     },
 
-    loadSvg(imageUrl) {
+    loadFloorplanSvg(imageUrl) {
       return this.getResource(imageUrl, true)
         .then(result => {
           let svg = $(result).find('svg')[0];
@@ -384,8 +384,7 @@
     },
 
     loadBitmapImage(imageUrl, svgElementInfo, entityState, rule) {
-      let prevousSvgElement = svgElementInfo.svgElement;
-      let svgElement = svgElementInfo.svgElement;
+      let svgElement = svgElementInfo.svgElement; // assume the target element already exists
 
       if (!$(svgElement).is('image')) {
         svgElement = this.createImageElement(svgElementInfo.originalSvgElement);
@@ -394,36 +393,24 @@
           .on('click', this.onEntityClick.bind({ instance: this, entityId: entityState.entity_id, rule: rule }))
           .css('cursor', 'pointer')
           .addClass('ha-entity');
-
-        // Replace previous image
-        let $parent = $(prevousSvgElement).parent();
-        $(prevousSvgElement).find('*').off('click');
-        $(prevousSvgElement).off('click').remove();
-        $parent.append(svgElement);
-
-        svgElementInfo.svgElement = svgElement;
       }
 
-      // Don't return this promise, as we don't want floorplan to wait for this image
-      this.getResource(imageUrl, false, true)
+      return this.getResource(imageUrl, false, true)
         .then(imageData => {
           if ($(svgElement).attr('href') !== imageData) {
             $(svgElement).attr('href', imageData);
           }
-        });
 
-      return Promise.resolve(svgElement);
+          svgElementInfo.svgElement = this.replaceElement(svgElementInfo.svgElement, svgElement);
+          
+          return Promise.resolve(svgElement);
+        });
     },
 
     loadSvgImage(imageUrl, svgElementInfo, entityState, rule) {
       return this.getResource(imageUrl, true)
         .then(result => {
-          let prevousSvgElement = svgElementInfo.svgElement;
-          let svgElement = svgElementInfo.svgElement;
-
-          let svg = $(result).find('svg')[0];
-          svgElement = svg.cloneNode(true);
-
+          svgElement = $(result).find('svg')[0];
           $(svgElement)
             .attr('id', svgElementInfo.svgElement.id)
             .attr('preserveAspectRatio', 'xMinYMin meet')
@@ -440,16 +427,25 @@
             .css('cursor', 'pointer')
             .addClass('ha-entity');
 
-          // Replace previous SVG
-          let $parent = $(prevousSvgElement).parent();
-          $(prevousSvgElement).find('*').off('click');
-          $(prevousSvgElement).off('click').remove();
-          $parent.append(svgElement);
-
-          svgElementInfo.svgElement = svgElement;
+          svgElementInfo.svgElement = this.replaceElement(svgElementInfo.svgElement, svgElement);
 
           return Promise.resolve(svgElement);
         })
+    },
+
+    replaceElement(prevousSvgElement, svgElement) {
+      let $parent = $(prevousSvgElement).parent();
+
+      $(prevousSvgElement).find('*')
+        .off('click');
+
+      $(prevousSvgElement)
+        .off('click')
+        .remove();
+
+      $parent.append(svgElement);
+
+      return svgElement;
     },
 
     /***************************************************************************************************************************/
@@ -872,9 +868,11 @@
 
       return this.handleEntityUpdateDom(entityId)
         .then(() => {
-          this.handleEntityUpdateCss(entityId, isInitialLoad)
+          this.handleEntityUpdateCss(entityId, isInitialLoad);
           this.handleEntityUpdateLastMotionCss(entityId);
           this.handleEntitySetHoverOver(entityId);
+
+          return Promise.resolve();
         });
     },
 
