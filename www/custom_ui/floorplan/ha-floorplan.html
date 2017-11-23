@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.38
+    Version: 1.0.7.39
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.38',
+        value: '1.0.7.39',
       },
       hass: {
         type: Object,
@@ -151,6 +151,10 @@
         type: Object,
         value: () => { return () => { } },
       },
+      variables: {
+        type: Array,
+        value: () => { return []; },
+      },
     },
 
     stopPropagation(e) {
@@ -209,10 +213,8 @@
         .then(() => {
           this.isLoading = false;
           this.initPageDisplay();
-          return this.handleEntities(true)
-            .then(() => {
-              return Promise.resolve();
-            });
+          this.initStartupActions();
+          return this.handleEntities(true);
         });
     },
 
@@ -226,10 +228,8 @@
                 .then(() => {
                   this.isLoading = false;
                   this.initPageDisplay();
-                  return this.handleEntities(true)
-                    .then(() => {
-                      return Promise.resolve();
-                    });
+                  this.initStartupActions();
+                  return this.handleEntities(true);
                 })
             });
         });
@@ -295,7 +295,7 @@
 
       let promises = this.config.pages.map(pageConfigUrl =>
         this.loadPage(pageConfigUrl, (pageConfigUrl === defaultPageConfigUrl)));
-      return promises.length ? Promise.all(promises) : Promise.resolve();
+      return promises.length ? Promise.all(promises) : Promise.resolve([]);
     },
 
     loadPage(pageConfigUrl, isDefault) {
@@ -308,7 +308,7 @@
               pageInfo.svg = svg;
               return this.loadStyleSheet(pageInfo.config.stylesheet)
                 .then(() => {
-                  return Promise.resolve(this.initFloorplan(pageInfo.svg, pageInfo.config));
+                  return this.initFloorplan(pageInfo.svg, pageInfo.config);
                 });
             });
         });
@@ -491,6 +491,42 @@
       }
     },
 
+    initStartupActions() {
+      let actions = [];
+
+      let startup = this.config.startup;
+      if (startup && (startup.action || startup.actions)) {
+        actions = actions.concat(startup.actions ? startup.actions : [startup.action]);
+      }
+
+      if (this.config.pages) {
+        for (let key of Object.keys(this.pageInfos)) {
+          let pageInfo = this.pageInfos[key];
+
+          let startup = pageInfo.config.startup;
+          if (startup && (startup.action || startup.actions)) {
+            actions = actions.concat(startup.actions ? startup.actions : [startup.action]);
+          }
+        }
+      }
+
+      for (let action of actions) {
+        if (action.service || action.service_template) {
+          let actionService = this.getActionService(action);
+
+          switch (this.getDomain(actionService)) {
+            case 'floorplan':
+              this.callFloorplanService(action);
+              break;
+
+            default:
+              this.callHomeAssistantService(action);
+              break;
+          }
+        }
+      }
+    },
+
     /***************************************************************************************************************************/
     /* SVG initialization
     /***************************************************************************************************************************/
@@ -596,7 +632,9 @@
         let entityIds = rule.entities.filter(x => (typeof x === 'string'));
         for (let entityId of entityIds) {
           let entity = this.hass.states[entityId];
-          if (entity) {
+          let isFloorplanVariable = (entityId.split('.')[0] === 'floorplan');
+
+          if (entity || isFloorplanVariable) {
             let elementId = rule.element ? rule.element : entityId;
             targetEntities.push({ entityId: entityId, elementId: elementId });
           }
@@ -608,7 +646,9 @@
         let entityObjects = rule.entities.filter(x => (typeof x !== 'string'));
         for (let entityObject of entityObjects) {
           let entity = this.hass.states[entityObject.entity];
-          if (entity) {
+          let isFloorplanVariable = (entityObject.entity.split('.')[0] === 'floorplan');
+
+          if (entity || isFloorplanVariable) {
             targetEntities.push({ entityId: entityObject.entity, elementId: entityObject.element });
           }
           else {
@@ -812,9 +852,12 @@
     /***************************************************************************************************************************/
 
     handleEntities(isInitialLoad) {
+      let variableNames = this.storeFloorplanVariables();
+
       this.handleElements();
 
-      let changedEntityIds = this.getChangedEntities(isInitialLoad);
+      let changedEntityIds = this.getChangedEntities(isInitialLoad).concat(variableNames);
+
       if (changedEntityIds && changedEntityIds.length) {
         let promises = changedEntityIds.map(entityId => this.handleEntity(entityId, isInitialLoad));
         return Promise.all(promises)
@@ -825,6 +868,19 @@
       else {
         return Promise.resolve();
       }
+    },
+
+    storeFloorplanVariables() {
+      let variableNames = Object.keys(this.variables);
+      for (let variableName of variableNames) {
+        this.hass.states[variableName] = {
+          entity_id: variableName,
+          state: this.variables[variableName],
+          attributes: [],
+        };
+      }
+
+      return variableNames;
     },
 
     getChangedEntities(isInitialLoad) {
@@ -1338,8 +1394,8 @@
     evaluate(code, entityId) {
       let entityState = this.hass.states[entityId];
       let functionBody = (code.indexOf('return') >= 0) ? code : `return \`${code}\`;`;
-      let func = new Function('entity', 'entities', 'hass', 'config', functionBody);
-      return func(entityState, this.hass.states, this.hass, this.config);
+      let func = new Function('entity', 'entities', 'hass', 'config', 'variables', 'get', 'set', functionBody);
+      return func(entityState, this.hass.states, this.hass, this.config, this.variables, this.getVariable.bind(this), this.setVariable.bind(this));
     },
 
     /***************************************************************************************************************************/
@@ -1368,15 +1424,14 @@
       for (let action of actions) {
         if (action.service || action.service_template) {
           let actionService = this.getActionService(action, entityId);
-          let actionData = this.getActionData(action, entityId);
 
           switch (this.getDomain(actionService)) {
             case 'floorplan':
-              this.callFloorplanService(actionService, actionData, entityId);
+              this.callFloorplanService(action, entityId);
               break;
 
             default:
-              this.callHomeAssistantService(actionService, actionData, entityId);
+              this.callHomeAssistantService(action, entityId);
               break;
           }
 
@@ -1391,7 +1446,10 @@
       }
     },
 
-    callFloorplanService(actionService, actionData, entityId) {
+    callFloorplanService(action, entityId) {
+      let actionService = this.getActionService(action);
+      let actionData = this.getActionData(action);
+
       switch (this.getService(actionService)) {
         case 'class_toggle':
           if (actionData) {
@@ -1432,17 +1490,46 @@
           }
           break;
 
+        case 'variable_set':
+          if (actionData.variable) {
+            let value = this.getActionValue(actionData);
+            this.setVariable(actionData.variable, value);
+          }
+          break;
+
         default:
           // Unknown floorplan service
           break;
       }
     },
 
+    getActionValue(action, entityId) {
+      let value = action.value;
+      if (action.value_template) {
+        value = this.evaluate(action.value_template, entityId);
+      }
+      return value;
+    },
+
+    getVariable(variableName) {
+      return this.variables[variableName];
+    },
+
+    setVariable(variableName, value) {
+      this.variables[variableName] = value;
+
+      // Simulate an event change to all entities
+      this.handleEntitiesDebounced(); // use debounced wrapper
+    },
+
     /***************************************************************************************************************************/
     /* Home Assisant helper functions
     /***************************************************************************************************************************/
 
-    callHomeAssistantService(actionService, actionData, entityId) {
+    callHomeAssistantService(action, entityId) {
+      let actionService = this.getActionService(action);
+      let actionData = this.getActionData(action);
+
       if (!actionData.entity_id && entityId) {
         actionData.entity_id = entityId;
       }
