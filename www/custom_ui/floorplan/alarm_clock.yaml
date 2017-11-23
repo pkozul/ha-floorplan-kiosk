@@ -17,41 +17,44 @@ rules:
   - entity: input_datetime.alarm_time
     text_template: '${entity.state.slice(0, 5)}'
 
+  - entities:
+    -  floorplan.hours
+    -  floorplan.minutes
+    text_template: '${("0" + entity.state).slice(-2)}'
+
   - entity: floorplan.hours
-    text_template: '${("0" + get("floorplan.hours")).slice(-2)}'
+    element: input_number.alarm_time_hours_up
+    action:
+      service: floorplan.variable_set
+      data:
+        variable: floorplan.hours
+        value_template: 'return (entity.state < 23) ? entity.state + 1 : entity.state;'
+
+  - entity: floorplan.hours
+    element: input_number.alarm_time_hours_down
+    action:
+      service: floorplan.variable_set
+      data:
+        variable: floorplan.hours
+        value_template: 'return (entity.state > 0) ? entity.state - 1 : entity.state;'
 
   - entity: floorplan.minutes
-    text_template: '${("0" + get("floorplan.minutes")).slice(-2)}'
-
-  - element: input_number.alarm_time_hours_up
-    action:
-      service: floorplan.variable_set
-      data:
-        variable: floorplan.hours
-        value_template: 'return (get("floorplan.hours") < 23) ? get("floorplan.hours") + 1 : get("floorplan.hours");'
-
-  - element: input_number.alarm_time_hours_down
-    action:
-      service: floorplan.variable_set
-      data:
-        variable: floorplan.hours
-        value_template: 'return (get("floorplan.hours") > 0) ? get("floorplan.hours") - 1 : get("floorplan.hours");'
-
-  - element: input_number.alarm_time_minutes_up
+    element: input_number.alarm_time_minutes_up
     action:
       service: floorplan.variable_set
       data:
         variable: floorplan.minutes
-        value_template: '${((parseInt(get("floorplan.minutes") / 5) * 5) + 5) % 60}'
+        value_template: '${((parseInt(entity.state / 5) * 5) + 5) % 60}'
 
-  - element: input_number.alarm_time_minutes_down
+  - entity: floorplan.minutes
+    element: input_number.alarm_time_minutes_down
     action:
       service: floorplan.variable_set
       data:
         variable: floorplan.minutes
-        value_template: '${(((parseInt(get("floorplan.minutes") / 5) * 5) - 5) + 60) % 60}'
+        value_template: '${(((parseInt(entity.state / 5) * 5) - 5) + 60) % 60}'
 
   - element: save_alarm_time_button
     action:
       service: input_datetime.set_datetime
-      data_template: '{ "entity_id": "input_datetime.alarm_time", "time": "${get(`floorplan.hours`)}:${get(`floorplan.minutes`)}" }'
+      data_template: '{ "entity_id": "input_datetime.alarm_time", "time": "${entities[`floorplan.hours`].state}:${entities[`floorplan.minutes`].state}" }'
