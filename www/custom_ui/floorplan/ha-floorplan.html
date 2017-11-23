@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.37
+    Version: 1.0.7.38
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.37',
+        value: '1.0.7.38',
       },
       hass: {
         type: Object,
@@ -392,7 +392,7 @@
             svgElement = this.createImageElement(svgElementInfo.originalSvgElement);
 
             $(svgElement).append(document.createElementNS('http://www.w3.org/2000/svg', 'title'))
-              .on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, rule: rule }))
+              .on('click', this.onEntityClick.bind({ instance: this, svgElementInfo: svgElementInfo, entityId: entityId, rule: rule }))
               .css('cursor', 'pointer')
               .addClass('ha-entity');
 
@@ -427,7 +427,7 @@
             .attr('y', svgElementInfo.originalBBox.y);
 
           $(svgElement).find('*').append(document.createElementNS('http://www.w3.org/2000/svg', 'title'))
-            .on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, rule: rule }))
+            .on('click', this.onEntityClick.bind({ instance: this, svgElementInfo: svgElementInfo, entityId: entityId, rule: rule }))
             .css('cursor', 'pointer')
             .addClass('ha-entity');
 
@@ -502,11 +502,11 @@
 
       let svgElements = $(svg).find('*').toArray();
 
-      this.initLastMotion(config, svgElements);
-      this.initRules(config, svgElements);
+      this.initLastMotion(config, svg, svgElements);
+      this.initRules(config, svg, svgElements);
     },
 
-    initLastMotion(config, svgElements) {
+    initLastMotion(config, svg, svgElements) {
       // Add the last motion entity if required
       if (config.last_motion && config.last_motion.entity && config.last_motion.class) {
         this.lastMotionConfig = config.last_motion;
@@ -516,60 +516,56 @@
       }
     },
 
-    initRules(config, svgElements) {
+    initRules(config, svg, svgElements) {
       for (let rule of config.rules) {
         if (rule.entity || rule.entities) {
-          this.initEntityRule(rule, svgElements);
+          this.initEntityRule(rule, svg, svgElements);
         }
         else if (rule.element || rule.elements) {
-          this.initElementRule(rule, svgElements);
+          this.initElementRule(rule, svg, svgElements);
         }
       }
     },
 
-    initEntityRule(rule, svgElements) {
-        let entities = this.initGetEntityRuleEntities(rule);
-        for (let entity of entities) {
-          let entityId = entity.entityId;
-          let elementId = entity.elementId;
+    initEntityRule(rule, svg, svgElements) {
+      let entities = this.initGetEntityRuleEntities(rule);
+      for (let entity of entities) {
+        let entityId = entity.entityId;
+        let elementId = entity.elementId;
 
-          let entityInfo = this.entityInfos[entityId];
-          if (!entityInfo) {
-            entityInfo = { ruleInfos: [], lastState: undefined };
-            this.entityInfos[entityId] = entityInfo;
-          }
+        let entityInfo = this.entityInfos[entityId];
+        if (!entityInfo) {
+          entityInfo = { ruleInfos: [], lastState: undefined };
+          this.entityInfos[entityId] = entityInfo;
+        }
 
-          let ruleInfo = { rule: rule, svgElementInfos: {}, };
-          entityInfo.ruleInfos.push(ruleInfo);
+        let ruleInfo = { rule: rule, svgElementInfos: {}, };
+        entityInfo.ruleInfos.push(ruleInfo);
 
-          let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
-          if (!svgElement) {
-            this.logWarning('CONFIG', `Cannot find element '${elementId}' in SVG file`);
-            continue;
-          }
+        let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
+        if (!svgElement) {
+          this.logWarning('CONFIG', `Cannot find element '${elementId}' in SVG file`);
+          continue;
+        }
 
-          this.addSvgElementToRule(svgElement, ruleInfo);
+        let svgElementInfo = this.addSvgElementToRule(svg, svgElement, ruleInfo);
 
-          for (svgElementId in ruleInfo.svgElementInfos) {
-            let svgElementInfo = ruleInfo.svgElementInfos[svgElementId];
+        let $svgElement = $(svgElementInfo.svgElement);
+        if ($svgElement.length) {
+          svgElementInfo.svgElement = $svgElement[0];
 
-            let $svgElement = $(svgElementInfo.svgElement);
-            if ($svgElement.length) {
-              svgElementInfo.svgElement = $svgElement[0];
+          // Create a title element (to support hover over text)
+          $svgElement.append(document.createElementNS('http://www.w3.org/2000/svg', 'title'));
 
-              // Create a title element (to support hover over text)
-              $svgElement.append(document.createElementNS('http://www.w3.org/2000/svg', 'title'));
+          $svgElement.on('click', this.onEntityClick.bind({ instance: this, svgElementInfo: svgElementInfo, entityId: entityId, rule: ruleInfo.rule }));
+          $svgElement.css('cursor', 'pointer');
+          $svgElement.addClass('ha-entity');
 
-              $svgElement.on('click', this.onEntityClick.bind({ instance: this, entityId: entityId, rule: ruleInfo.rule }));
-              $svgElement.css('cursor', 'pointer');
-              $svgElement.addClass('ha-entity');
-
-              if ($svgElement.is('text') && ($svgElement[0].id === elementId)) {
-                this.addBackgroundRectToText($svgElement[0]);
-              }
-            }
+          if ($svgElement.is('text') && ($svgElement[0].id === elementId)) {
+            this.addBackgroundRectToText($svgElement[0]);
           }
         }
+      }
     },
 
     initGetEntityRuleEntities(rule) {
@@ -624,34 +620,36 @@
       return targetEntities;
     },
 
-    initElementRule(rule, svgElements) {
-        if (rule.element) {
-          rule.elements = [rule.element];
-        }
+    initElementRule(rule, svg, svgElements) {
+      if (rule.element) {
+        rule.elements = [rule.element];
+      }
 
-        for (let elementId of rule.elements) {
-          let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
-          if (svgElement) {
-            $(svgElement).on('click', this.onElementClick.bind({ instance: this, elementId: elementId, rule: rule }));
-            $(svgElement).css('cursor', 'pointer');
+      for (let elementId of rule.elements) {
+        let svgElement = svgElements.find(svgElement => svgElement.id === elementId);
+        if (svgElement) {
+          let elementInfo = this.elementInfos[elementId];
+          if (!elementInfo) {
+            elementInfo = { ruleInfos: [], lastState: undefined };
+            this.elementInfos[elementId] = elementInfo;
+          }
 
-            let elementInfo = this.elementInfos[elementId];
-            if (!elementInfo) {
-              elementInfo = { ruleInfos: [], lastState: undefined };
-              this.elementInfos[elementId] = elementInfo;
-            }
+          let ruleInfo = { rule: rule, svgElementInfos: {}, };
+          elementInfo.ruleInfos.push(ruleInfo);
 
-            let ruleInfo = { rule: rule, svgElementInfos: {}, };
-            elementInfo.ruleInfos.push(ruleInfo);
+          let svgElementInfo = this.addSvgElementToRule(svg, svgElement, ruleInfo);
 
-            this.addSvgElementToRule(svgElement, ruleInfo);
+          $(svgElement).on('click', this.onElementClick.bind({ instance: this, svgElementInfo: svgElementInfo, elementId: elementId, rule: rule }));
+          $(svgElement).css('cursor', 'pointer');
 
-            if (rule.action) {
-              switch (rule.action.service) {
+          let actions = rule.actions ? rule.actions : [rule.action];
+          for (let action of actions) {
+            if (action) {
+              switch (action.service) {
                 case 'toggle':
-                  for (let otherElementId of rule.action.data.elements) {
+                  for (let otherElementId of action.data.elements) {
                     let otherSvgElement = svgElements.find(svgElement => svgElement.id === otherElementId);
-                    $(otherSvgElement).addClass(rule.action.data.default_class);
+                    $(otherSvgElement).addClass(action.data.default_class);
                   }
                   break;
 
@@ -660,10 +658,11 @@
               }
             }
           }
-          else {
-            this.logWarning('CONFIG', `Cannot find '${elementId}' in SVG file`);
-          }
         }
+        else {
+          this.logWarning('CONFIG', `Cannot find '${elementId}' in SVG file`);
+        }
+      }
     },
 
     addBackgroundRectToText(svgElement) {
@@ -680,9 +679,10 @@
       $(rect).insertBefore(svgElement);
     },
 
-    addSvgElementToRule(svgElement, ruleInfo) {
-      ruleInfo.svgElementInfos[svgElement.id] = {
+    addSvgElementToRule(svg, svgElement, ruleInfo) {
+      let svgElementInfo = {
         entityId: svgElement.id,
+        svg: svg,
         svgElement: svgElement,
         originalSvgElement: svgElement,
         originalStroke: svgElement.style.stroke,
@@ -691,8 +691,11 @@
         originalBBox: svgElement.getBBox(),
         originalClientRect: svgElement.getBoundingClientRect(),
       };
+      ruleInfo.svgElementInfos[svgElement.id] = svgElementInfo;
 
       this.addNestedSvgElementsToRule(svgElement, ruleInfo);
+
+      return svgElementInfo;
     },
 
     addNestedSvgElementsToRule(svgElement, ruleInfo) {
@@ -1030,10 +1033,12 @@
       let entityInfo = this.entityInfos[entityId];
 
       for (let ruleInfo of entityInfo.ruleInfos) {
-        for (let svgElementId in ruleInfo.svgElementInfos) {
-          let svgElementInfo = ruleInfo.svgElementInfos[svgElementId];
+        if (ruleInfo.rule.hover_over !== false) {
+          for (let svgElementId in ruleInfo.svgElementInfos) {
+            let svgElementInfo = ruleInfo.svgElementInfos[svgElementId];
 
-          this.handlEntitySetHoverOverText(svgElementInfo.svgElement, entityState);
+            this.handlEntitySetHoverOverText(svgElementInfo.svgElement, entityState);
+          }
         }
       }
     },
@@ -1342,107 +1347,94 @@
     /***************************************************************************************************************************/
 
     onElementClick(e) {
-      if (!this.rule || !this.rule.action) {
+      this.instance.onActionClick(this.svgElementInfo, this.entityId, this.elementId, this.rule);
+    },
+
+    onEntityClick(e) {
+      this.instance.onActionClick(this.svgElementInfo, this.entityId, this.elementId, this.rule);
+    },
+
+    onActionClick(svgElementInfo, entityId, elementId, rule) {
+      if (!rule || !(rule.action || rule.actions)) {
+        if (entityId && (rule.more_info !== false)) {
+          this.fire('hass-more-info', { entityId: entityId });
+        }
         return;
       }
 
-      let action = this.rule.action;
+      let calledServiceCount = 0;
 
-      let entityId = (action.data && action.data.entity_id) || this.elementId;
+      let actions = rule.actions ? rule.actions : [rule.action];
+      for (let action of actions) {
+        if (action.service || action.service_template) {
+          let actionService = this.getActionService(action, entityId);
+          let actionData = this.getActionData(action, entityId);
 
-      let actionService = action.service;
-      if (action.service_template) {
-        let result = this.instance.evaluate(action.service_template, entityId);
-        actionService = JSON.parse(result);
-      }
-
-      if (!actionService) {
-        return;
-      }
-
-      let svgElement = e.target;
-      let svg = $(svgElement).parents('svg');
-
-      let domain = actionService.split(".")[0];
-      let service = actionService.split(".")[1];
-
-      switch (domain) {
-        case 'class':
-        case 'floorplan_class':
-          switch (service) {
-            case 'toggle':
-              if (action.data) {
-                let classes = action.data.classes;
-
-                for (let otherElementId of action.data.elements) {
-                  let otherSvgElement = $(svg).find(`[id="${otherElementId}"]`);
-
-                  if ($(otherSvgElement).hasClass(classes[0])) {
-                    $(otherSvgElement).removeClass(classes[0]);
-                    $(otherSvgElement).addClass(classes[1]);
-                  }
-                  else if ($(otherSvgElement).hasClass(classes[1])) {
-                    $(otherSvgElement).removeClass(classes[1]);
-                    $(otherSvgElement).addClass(classes[0]);
-                  }
-                  else {
-                    $(otherSvgElement).addClass(action.data.default_class);
-                  }
-                }
-              }
+          switch (this.getDomain(actionService)) {
+            case 'floorplan':
+              this.callFloorplanService(actionService, actionData, entityId);
               break;
 
             default:
-              this.instance.callService(action, entityId);
+              this.callHomeAssistantService(actionService, actionData, entityId);
               break;
+          }
+
+          calledServiceCount++;
+        }
+      }
+
+      if (!calledServiceCount) {
+        if (entityId && (rule.more_info !== false)) {
+          this.fire('hass-more-info', { entityId: entityId });
+        }
+      }
+    },
+
+    callFloorplanService(actionService, actionData, entityId) {
+      switch (this.getService(actionService)) {
+        case 'class_toggle':
+          if (actionData) {
+            let classes = actionData.classes;
+
+            for (let otherElementId of actionData.elements) {
+              let otherSvgElement = $(svgElementInfo.svg).find(`[id="${otherElementId}"]`);
+
+              if ($(otherSvgElement).hasClass(classes[0])) {
+                $(otherSvgElement).removeClass(classes[0]);
+                $(otherSvgElement).addClass(classes[1]);
+              }
+              else if ($(otherSvgElement).hasClass(classes[1])) {
+                $(otherSvgElement).removeClass(classes[1]);
+                $(otherSvgElement).addClass(classes[0]);
+              }
+              else {
+                $(otherSvgElement).addClass(actionData.default_class);
+              }
+            }
           }
           break;
 
-        case 'page':
-        case 'floorplan_page':
-          switch (service) {
-            case 'navigate':
-              let page_id = action.data.page_id;
-              let targetPageInfo = page_id && this.instance.pageInfos[page_id];
+        case 'page_navigate':
+          let page_id = actionData.page_id;
+          let targetPageInfo = page_id && this.pageInfos[page_id];
 
-              if (targetPageInfo) {
-                Object.keys(this.instance.pageInfos).map(key => {
-                  let pageInfo = this.instance.pageInfos[key];
+          if (targetPageInfo) {
+            Object.keys(this.pageInfos).map(key => {
+              let pageInfo = this.pageInfos[key];
 
-                  if ($(pageInfo.svg).css('display') !== 'none') {
-                    $(pageInfo.svg).css('display', 'none');
-                  }
-                });
-
-                $(targetPageInfo.svg).css('display', 'initial');
+              if ($(pageInfo.svg).css('display') !== 'none') {
+                $(pageInfo.svg).css('display', 'none');
               }
-              break;
+            });
+
+            $(targetPageInfo.svg).css('display', 'initial');
           }
           break;
 
         default:
-          this.instance.handleEntityClick(undefined, this.rule);
+          // Unknown floorplan service
           break;
-      }
-    },
-
-    onEntityClick(e) {
-      this.instance.handleEntityClick(this.entityId, this.rule);
-    },
-
-    handleEntityClick(entityId, rule) {
-      if (rule.action) {
-        let action = rule.action;
-
-        if (action && (action.service || action.service_template)) {
-          this.callService(action, entityId);
-        }
-        else {
-          this.fire('hass-more-info', { entityId: entityId });
-        }
-      }
-      else {
-        this.fire('hass-more-info', { entityId: entityId });
       }
     },
 
@@ -1450,27 +1442,37 @@
     /* Home Assisant helper functions
     /***************************************************************************************************************************/
 
-    callService(action, entityId) {      
-      let actionService = action.service;
-
-      if (action.service_template) {
-        actionService = this.evaluate(action.service_template, entityId);
+    callHomeAssistantService(actionService, actionData, entityId) {
+      if (!actionData.entity_id && entityId) {
+        actionData.entity_id = entityId;
       }
 
+      this.hass.callService(this.getDomain(actionService), this.getService(actionService), actionData);
+    },
+
+    getActionData(action, entityId) {
       let data = action.data ? action.data : {};
       if (action.data_template) {
         let result = this.evaluate(action.data_template, entityId);
         data = JSON.parse(result);
       }
+      return data;
+    },
 
-      if (!data.entity_id && entityId) {
-        data.entity_id = entityId;
+    getActionService(action, entityId) {
+      let service = action.service;
+      if (action.service_template) {
+        service = this.evaluate(action.service_template, entityId);
       }
+      return service;
+    },
 
-      let domain = actionService.split(".")[0];
-      let service = actionService.split(".")[1];
+    getDomain(actionService) {
+      return actionService.split(".")[0];
+    },
 
-      this.hass.callService(domain, service, data);
+    getService(actionService) {
+      return actionService.split(".")[1];
     },
 
     /***************************************************************************************************************************/
