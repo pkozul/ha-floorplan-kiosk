@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.7.39
+    Version: 1.0.7.40
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -91,7 +91,7 @@
     properties: {
       version: {
         type: String,
-        value: '1.0.7.39',
+        value: '1.0.7.40',
       },
       hass: {
         type: Object,
@@ -1394,8 +1394,8 @@
     evaluate(code, entityId) {
       let entityState = this.hass.states[entityId];
       let functionBody = (code.indexOf('return') >= 0) ? code : `return \`${code}\`;`;
-      let func = new Function('entity', 'entities', 'hass', 'config', 'variables', 'get', 'set', functionBody);
-      return func(entityState, this.hass.states, this.hass, this.config, this.variables, this.getVariable.bind(this), this.setVariable.bind(this));
+      let func = new Function('entity', 'entities', 'hass', 'config', functionBody);
+      return func(entityState, this.hass.states, this.hass, this.config);
     },
 
     /***************************************************************************************************************************/
@@ -1492,7 +1492,7 @@
 
         case 'variable_set':
           if (actionData.variable) {
-            let value = this.getActionValue(actionData);
+            let value = this.getActionValue(actionData, entityId);
             this.setVariable(actionData.variable, value);
           }
           break;
@@ -1509,10 +1509,6 @@
         value = this.evaluate(action.value_template, entityId);
       }
       return value;
-    },
-
-    getVariable(variableName) {
-      return this.variables[variableName];
     },
 
     setVariable(variableName, value) {
