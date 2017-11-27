@@ -1,6 +1,6 @@
 /*
     Floorplan for Home Assistant
-    Version: 1.0.7.41
+    Version: 1.0.7.42
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
 */
@@ -10,7 +10,7 @@
 if (typeof window.Floorplan !== 'function') {
   class Floorplan {
     constructor() {
-      this.version = '1.0.7.41';
+      this.version = '1.0.7.42';
       this.doc = {};
       this.hass = {};
       this.openMoreInfo = () => { };
@@ -1308,7 +1308,7 @@ if (typeof window.Floorplan !== 'function') {
 
           switch (this.getDomain(actionService)) {
             case 'floorplan':
-              this.callFloorplanService(action, entityId);
+              this.callFloorplanService(action, entityId, svgElementInfo);
               break;
 
             default:
@@ -1327,7 +1327,7 @@ if (typeof window.Floorplan !== 'function') {
       }
     }
 
-    callFloorplanService(action, entityId) {
+    callFloorplanService(action, entityId, svgElementInfo) {
       let actionService = this.getActionService(action, entityId);
       let actionData = this.getActionData(action);
 
