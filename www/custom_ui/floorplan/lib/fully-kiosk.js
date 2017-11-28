@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.26
+Version: 1.0.7.27
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -9,7 +9,7 @@ https://github.com/pkozul/ha-floorplan
 if (typeof window.FullyKiosk !== 'function') {
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.26';
+      this.version = '1.0.7.27';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -53,7 +53,7 @@ if (typeof window.FullyKiosk !== 'function') {
       return {
         motionBinarySensorEntityId: device.motion_sensor,
         pluggedBinarySensorEntityId: device.plugged_sensor,
-        screensaverBinarySensorEntityId: device.screensaver_sensor,
+        screensaverLightEntityId: device.screensaver_light,
         mediaPlayerEntityId: device.media_player,
 
         startUrl: fully.getStartUrl(),
@@ -211,12 +211,12 @@ if (typeof window.FullyKiosk !== 'function') {
     }
 
     sendScreensaverState() {
-      if (!this.fullyInfo.screensaverBinarySensorEntityId) {
+      if (!this.fullyInfo.screensaverLightEntityId) {
         return;
       }
 
       let state = this.fullyState.isScreensaverOn ? "on" : "off";
-      this.sendState(`/api/states/${this.fullyInfo.screensaverBinarySensorEntityId}`, this.newPayload(state));
+      this.sendState(`/api/states/${this.fullyInfo.screensaverLightEntityId}`, this.newPayload(state));
     }
 
     newPayload(state) {
@@ -335,8 +335,8 @@ if (typeof window.FullyKiosk !== 'function') {
       */
 
       this.floorplan.hass.connection.subscribeEvents((event) => {
-        if (this.fullyInfo.screensaverBinarySensorEntityId && (event.data.domain === 'binary_sensor')) {
-          if (event.data.service_data.entity_id.toString() === this.fullyInfo.screensaverBinarySensorEntityId) {
+        if (this.fullyInfo.screensaverLightEntityId && (event.data.domain === 'light')) {
+          if (event.data.service_data.entity_id.toString() === this.fullyInfo.screensaverLightEntityId) {
             switch (event.data.service) {
               case 'turn_on':
                 if (!this.fullyInfo.isScreensaverOn) {
