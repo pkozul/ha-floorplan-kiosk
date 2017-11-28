@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.27
+Version: 1.0.7.28
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -9,7 +9,7 @@ https://github.com/pkozul/ha-floorplan
 if (typeof window.FullyKiosk !== 'function') {
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.27';
+      this.version = '1.0.7.28';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -162,20 +162,20 @@ if (typeof window.FullyKiosk !== 'function') {
     }
 
     onFullyMotion() {
-      this.logDebug('FULLY_KIOSK', 'Motion detected');
       this.fullyState.isMotionDetected = true;
+      this.logDebug('FULLY_KIOSK', 'Motion detected');
       this.sendMotionState();
     }
 
     onFullyScreensaverStart() {
-      this.logDebug('FULLY_KIOSK', 'Screensaver started');
       this.fullyState.isScreensaverOn = true;
+      this.logDebug('FULLY_KIOSK', 'Screensaver started');
       this.sendScreensaverState();
     }
 
     onFullyScreensaverStop() {
-      this.logDebug('FULLY_KIOSK', 'Screensaver stopped');
       this.fullyState.isScreensaverOn = false;
+      this.logDebug('FULLY_KIOSK', 'Screensaver stopped');
       this.sendScreensaverState();
     }
 
@@ -339,17 +339,11 @@ if (typeof window.FullyKiosk !== 'function') {
           if (event.data.service_data.entity_id.toString() === this.fullyInfo.screensaverLightEntityId) {
             switch (event.data.service) {
               case 'turn_on':
-                if (!this.fullyInfo.isScreensaverOn) {
-                  this.fullyInfo.isScreensaverOn = true;
-                  this.startScreensaver();
-                }
+                this.startScreensaver();
                 break;
-  
+
               case 'turn_off':
-                if (this.fullyInfo.isScreensaverOn) {
-                  this.fullyInfo.isScreensaverOn = false;
-                  this.stopScreensaver();
-                }
+                this.stopScreensaver();
                 break;
             }
           }
