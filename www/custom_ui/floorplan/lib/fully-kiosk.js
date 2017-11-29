@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.29
+Version: 1.0.7.30
 https://github.com/pkozul/ha-floorplan
 */
 
@@ -22,7 +22,7 @@ if (typeof window.FullyKiosk !== 'function') {
       this.logInfo('VERSION', `Fully Kiosk v${this.version}`);
 
       if (typeof fully === "undefined") {
-        this.logInfo('FULLY_KIOSK', `Fully Kiosk application is not running on this device`);
+        this.logInfo('FULLY_KIOSK', `Fully Kiosk is not running or not enabled. You can enable it via Settings > Other Settings > Enable Website Integration (PLUS).`);
         return;
       }
 
@@ -280,7 +280,7 @@ if (typeof window.FullyKiosk !== 'function') {
     setScreenBrightness(brightness) {
       fully.setScreenBrightness(brightness);
     }
-    
+
     startScreensaver() {
       this.logInfo('FULLY_KIOSK', `Starting screensaver`);
       fully.startScreensaver();
