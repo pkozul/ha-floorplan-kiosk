@@ -1,6 +1,6 @@
 /*
  Floorplan for Home Assistant
- Version: 1.0.7.46
+ Version: 1.0.7.47
  By Petar Kozul
  https://github.com/pkozul/ha-floorplan
 */
@@ -10,7 +10,7 @@
 if (typeof window.Floorplan !== 'function') {
   class Floorplan {
     constructor() {
-      this.version = '1.0.7.46';
+      this.version = '1.0.7.47';
       this.doc = {};
       this.hass = {};
       this.openMoreInfo = () => { };
@@ -87,6 +87,7 @@ if (typeof window.Floorplan !== 'function') {
         .then(() => {
           this.setIsLoading(false);
           this.initPageDisplay();
+          this.initVariables();
           this.initStartupActions();
           return this.handleEntities(true);
         });
@@ -103,6 +104,7 @@ if (typeof window.Floorplan !== 'function') {
                 .then(() => {
                   this.setIsLoading(false);
                   this.initPageDisplay();
+                  this.initVariables();
                   this.initStartupActions();
                   return this.handleEntities(true);
                 })
@@ -392,6 +394,50 @@ if (typeof window.Floorplan !== 'function') {
         $(this.config.svg).css('opacity', 1);
         $(this.config.svg).css('display', 'initial');
       }
+    }
+
+    initVariables() {
+      if (this.config.variables) {
+        for (let variable of this.config.variables) {
+          this.initVariable(variable);
+        }
+      }
+
+      if (this.config.pages) {
+        for (let key of Object.keys(this.pageInfos)) {
+          let pageInfo = this.pageInfos[key];
+
+          if (pageInfo.config.variables) {
+            for (let variable of pageInfo.config.variables) {
+              this.initVariable(variable);
+            }
+          }
+        }
+      }
+    }
+
+    initVariable(variable) {
+      let variableName = variable.name;
+
+      if (!this.entityInfos[variableName]) {
+        let entityInfo = { ruleInfos: [], lastState: undefined };
+        this.entityInfos[variableName] = entityInfo;
+      }
+
+      let value = variable.value;
+      if (variable.value_template) {
+        value = this.evaluate(variable.value_template, variable.name);
+      }
+
+      if (!this.hass.states[variableName]) {
+        this.hass.states[variableName] = {
+          entity_id: variableName,
+          state: value,
+          attributes: [],
+        };
+      }
+
+      this.variables[variableName] = value;
     }
 
     initStartupActions() {
@@ -759,11 +805,9 @@ if (typeof window.Floorplan !== 'function') {
     /***************************************************************************************************************************/
 
     handleEntities(isInitialLoad) {
-      let variableNames = this.storeFloorplanVariables();
-
       this.handleElements();
 
-      let changedEntityIds = this.getChangedEntities(isInitialLoad).concat(variableNames);
+      let changedEntityIds = this.getChangedEntities(isInitialLoad).concat(Object.keys(this.variables)); // assume variables always changed
 
       if (changedEntityIds && changedEntityIds.length) {
         let promises = changedEntityIds.map(entityId => this.handleEntity(entityId, isInitialLoad));
@@ -775,19 +819,6 @@ if (typeof window.Floorplan !== 'function') {
       else {
         return Promise.resolve();
       }
-    }
-
-    storeFloorplanVariables() {
-      let variableNames = Object.keys(this.variables);
-      for (let variableName of variableNames) {
-        this.hass.states[variableName] = {
-          entity_id: variableName,
-          state: this.variables[variableName],
-          attributes: [],
-        };
-      }
-
-      return variableNames;
     }
 
     getChangedEntities(isInitialLoad) {
@@ -1426,6 +1457,10 @@ if (typeof window.Floorplan !== 'function') {
     setVariable(variableName, value) {
       this.variables[variableName] = value;
 
+      if (this.hass.states[variableName])  {
+        this.hass.states[variableName].state = value;
+      }
+      
       // Simulate an event change to all entities
       this.handleEntitiesDebounced(); // use debounced wrapper
     }
@@ -1688,6 +1723,12 @@ if (typeof window.Floorplan !== 'function') {
         out += CHARS.charAt(((c2 & 0xF) << 2) | ((c3 & 0xC0) >> 6));
         out += CHARS.charAt(c3 & 0x3F);
       }
+
+      // IOS / Safari will not render base64 images unless length is divisible by 4
+      while ((out.length % 4) > 0) {
+        out += '=';
+      }
+
       return out;
     }
 
@@ -1789,6 +1830,40 @@ if (typeof window.Floorplan !== 'function') {
         Math.round(color1.b * w1 + color2.b * w2)
       ];
       return rgb;
+    }
+
+    wrap(svgTextElement, width, content) {
+      let $text = $(svgTextElement);
+
+      let words = content.split(/\s+/).reverse();
+      let line = [];
+      let lineNumber = 0;
+      let lineHeight = 1.1; // ems
+      let x = $text.attr("x");
+      let y = $text.attr("y");
+      //let dy = 0; //parseFloat($text.attr("dy")),
+
+      let $tspan = $text.append("tspan")
+        .attr("x", x)
+        .attr("y", y)
+        .attr("dy", dy + "em")
+        .text(null);
+
+      let word;
+      while (word = words.pop()) {
+        line.push(word);
+        $tspan.text(line.join(" "));
+        if ($tspan.node().getComputedTextLength() > width) {
+          line.pop();
+          $tspan.text(line.join(" "));
+          line = [word];
+          $tspan = $text.append("tspan")
+            .attr("x", x)
+            .attr("y", y)
+            .attr("dy", ++lineNumber * lineHeight + dy + "em")
+            .text(word);
+        }
+      }
     }
   }
 
