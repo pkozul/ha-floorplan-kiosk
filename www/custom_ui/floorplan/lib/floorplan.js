@@ -1,6 +1,6 @@
 /*
  Floorplan for Home Assistant
- Version: 1.0.7.45
+ Version: 1.0.7.46
  By Petar Kozul
  https://github.com/pkozul/ha-floorplan
 */
@@ -10,7 +10,7 @@
 if (typeof window.Floorplan !== 'function') {
   class Floorplan {
     constructor() {
-      this.version = '1.0.7.45';
+      this.version = '1.0.7.46';
       this.doc = {};
       this.hass = {};
       this.openMoreInfo = () => { };
@@ -93,7 +93,8 @@ if (typeof window.Floorplan !== 'function') {
     }
 
     initSinglePage() {
-      return this.loadFloorplanSvg(this.config.image)
+      let imageUrl = this.getBestImage(this.config);
+      return this.loadFloorplanSvg(imageUrl)
         .then((svg) => {
           this.config.svg = svg;
           return this.loadStyleSheet(this.config.stylesheet)
@@ -177,7 +178,8 @@ if (typeof window.Floorplan !== 'function') {
         .then((pageConfig) => {
           let pageInfo = this.createPageInfo(pageConfig);
           pageInfo.isDefault = isDefault;
-          return this.loadFloorplanSvg(pageInfo.config.image)
+          let imageUrl = this.getBestImage(pageConfig);
+          return this.loadFloorplanSvg(imageUrl)
             .then((svg) => {
               pageInfo.svg = svg;
               return this.loadStyleSheet(pageInfo.config.stylesheet)
@@ -186,6 +188,27 @@ if (typeof window.Floorplan !== 'function') {
                 });
             });
         });
+    }
+
+    getBestImage(config) {
+      let imageUrl = '';
+
+      if (typeof config.image === 'string') {
+        imageUrl = config.image;
+      }
+      else {
+        if (config.image.sizes) {
+          config.image.sizes.sort((a, b) => b.min_width - a.min_width); // sort descending
+          for (let pageSize of config.image.sizes) {
+            if (screen.width >= pageSize.min_width) {
+              imageUrl = pageSize.location;
+              break;
+            }
+          }
+        }
+      }
+
+      return imageUrl;
     }
 
     createPageInfo(pageConfig, isDefault) {
@@ -1588,7 +1611,7 @@ if (typeof window.Floorplan !== 'function') {
             fn.call(scope || window, true, link);           // fire the callback with success == true
           }
         }
-        catch (e) { debugger; }
+        catch (e) { console.error(e); debugger; }
         finally { }
       }, 10),                                               // how often to check if the stylesheet is loaded
         timeoutId = setTimeout(function () {                // start counting down till fail
