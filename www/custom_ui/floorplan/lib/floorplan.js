@@ -1,6 +1,6 @@
 /*
  Floorplan for Home Assistant
- Version: 1.0.7.47
+ Version: 1.0.7.48
  By Petar Kozul
  https://github.com/pkozul/ha-floorplan
 */
@@ -10,7 +10,7 @@
 if (typeof window.Floorplan !== 'function') {
   class Floorplan {
     constructor() {
-      this.version = '1.0.7.47';
+      this.version = '1.0.7.48';
       this.doc = {};
       this.hass = {};
       this.openMoreInfo = () => { };
@@ -132,7 +132,7 @@ if (typeof window.Floorplan !== 'function') {
     /***************************************************************************************************************************/
 
     loadConfig(configUrl) {
-      return this.getResource(configUrl, false)
+      return this.fetchTextResource(configUrl, false)
         .then(config => {
           return Promise.resolve(YAML.parse(config));
         });
@@ -247,9 +247,9 @@ if (typeof window.Floorplan !== 'function') {
     }
 
     loadFloorplanSvg(imageUrl) {
-      return this.getResource(imageUrl, true)
+      return this.fetchTextResource(imageUrl, true)
         .then(result => {
-          let svg = $(result).find('svg')[0];
+          let svg = $(result).siblings('svg')[0];
 
           $(svg).height('100%');
           $(svg).width('100%');
@@ -283,7 +283,7 @@ if (typeof window.Floorplan !== 'function') {
     }
 
     loadBitmapImage(imageUrl, svgElementInfo, entityId, rule) {
-      return this.getResource(imageUrl, false, true)
+      return this.fetchImageResource(imageUrl, false, true)
         .then(imageData => {
           this.logDebug('IMAGE', `${entityId} (setting image: ${imageUrl})`);
 
@@ -310,11 +310,11 @@ if (typeof window.Floorplan !== 'function') {
     }
 
     loadSvgImage(imageUrl, svgElementInfo, entityId, rule) {
-      return this.getResource(imageUrl, true)
+      return this.fetchTextResource(imageUrl, true)
         .then(result => {
           this.logDebug('IMAGE', `${entityId} (setting image: ${imageUrl})`);
 
-          let svgElement = $(result).find('svg')[0];
+          let svgElement = $(result).siblings('svg')[0];
 
           let height = Number.parseFloat($(svgElement).attr('height'));
           let width = Number.parseFloat($(svgElement).attr('width'));
@@ -1457,10 +1457,10 @@ if (typeof window.Floorplan !== 'function') {
     setVariable(variableName, value) {
       this.variables[variableName] = value;
 
-      if (this.hass.states[variableName])  {
+      if (this.hass.states[variableName]) {
         this.hass.states[variableName].state = value;
       }
-      
+
       // Simulate an event change to all entities
       this.handleEntitiesDebounced(); // use debounced wrapper
     }
@@ -1559,7 +1559,24 @@ if (typeof window.Floorplan !== 'function') {
 
     log(level, message) {
       let text = `${moment().format("DD-MM-YYYY HH:mm:ss")} ${level.toUpperCase()} ${message}`;
-      console.log(text);
+
+      switch (level) {
+        case 'error':
+          console.error(text);
+          break;
+
+        case 'warning':
+          console.warn(text);
+          break;
+
+        case 'error':
+          console.info(text);
+          break;
+
+        default:
+          console.debug(text);
+          break;
+      }
 
       if (!this.config) {
         // Always log messages before the config has been loaded
@@ -1665,28 +1682,54 @@ if (typeof window.Floorplan !== 'function') {
     /* General helper functions
     /***************************************************************************************************************************/
 
-    getResource(resourceUrl, useCache, isImage) {
+    fetchTextResource(resourceUrl, useCache) {
       resourceUrl = this.cacheBuster(resourceUrl);
       useCache = false;
 
       return new Promise((resolve, reject) => {
-        let options = {
-          url: resourceUrl,
-          cache: (useCache === true),
-          //processData: false,
-          error: (err) => {
-            reject(new URIError(`${resourceUrl}: ${err.responseText}`));
-          },
-          success: (result) => {
-            resolve(isImage ? `data:image/jpeg;base64,${this.base64Encode(result)}` : result);
-          },
-        };
+        let request = new Request(resourceUrl, {
+          cache: (useCache === true) ? 'reload' : 'no-cache',
+        });
 
-        if (isImage) {
-          options.mimeType = 'text/plain; charset=x-user-defined';
-        }
+        fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              return response.text();
+            }
+            else {
+              throw new URIError(`${resourceUrl}: error fetching resource`);
+            }
+          })
+          .then((result) => resolve(result))
+          .catch((err) => {
+            reject(new URIError(`${resourceUrl}: ${err.message}`));
+          });
+      });
+    }
 
-        jQuery.ajax(options);
+    fetchImageResource(resourceUrl, useCache) {
+      resourceUrl = this.cacheBuster(resourceUrl);
+      useCache = false;
+
+      return new Promise((resolve, reject) => {
+        let request = new Request(resourceUrl, {
+          cache: (useCache === true) ? 'reload' : 'no-cache',
+          headers: new Headers({ 'Content-Type': 'text/plain; charset=x-user-defined' }),
+        });
+
+        fetch(request)
+          .then((response) => {
+            if (response.ok) {
+              return response.arrayBuffer();
+            }
+            else {
+              throw new URIError(`${resourceUrl}: error fetching resource`);
+            }
+          })
+          .then((result) => resolve(`data:image/jpeg;base64,${this.arrayBufferToBase64(result)}`))
+          .catch((err) => {
+            reject(new URIError(`${resourceUrl}: ${err.message}`));
+          });
       });
     }
 
@@ -1698,7 +1741,23 @@ if (typeof window.Floorplan !== 'function') {
       return Array.isArray(list) ? list : Object.keys(list).map(key => list[key]);
     }
 
-    base64Encode(str) {
+    arrayBufferToBase64(buffer) {
+      let binary = '';
+      let bytes = [].slice.call(new Uint8Array(buffer));
+
+      bytes.forEach((b) => binary += String.fromCharCode(b));
+
+      let base64 = window.btoa(binary);
+
+      // IOS / Safari will not render base64 images unless length is divisible by 4
+      while ((base64.length % 4) > 0) {
+        base64 += '=';
+      }
+
+      return base64;
+    }
+
+    base64Encodebase64Encode(str) {
       let CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
       let out = "", i = 0, len = str.length, c1, c2, c3;
       while (i < len) {
@@ -1757,7 +1816,7 @@ if (typeof window.Floorplan !== 'function') {
     equal(a, b) {
       if (a === b) return true;
 
-      var arrA = Array.isArray(a)
+      let arrA = Array.isArray(a)
         , arrB = Array.isArray(b)
         , i;
 
@@ -1771,15 +1830,15 @@ if (typeof window.Floorplan !== 'function') {
       if (arrA != arrB) return false;
 
       if (a && b && typeof a === 'object' && typeof b === 'object') {
-        var keys = Object.keys(a);
+        let keys = Object.keys(a);
         if (keys.length !== Object.keys(b).length) return false;
 
-        var dateA = a instanceof Date
+        let dateA = a instanceof Date
           , dateB = b instanceof Date;
         if (dateA && dateB) return a.getTime() == b.getTime();
         if (dateA != dateB) return false;
 
-        var regexpA = a instanceof RegExp
+        let regexpA = a instanceof RegExp
           , regexpB = b instanceof RegExp;
         if (regexpA && regexpB) return a.toString() == b.toString();
         if (regexpA != regexpB) return false;
