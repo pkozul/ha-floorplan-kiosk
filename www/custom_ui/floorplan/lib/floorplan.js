@@ -1697,7 +1697,7 @@ if (typeof window.Floorplan !== 'function') {
               return response.text();
             }
             else {
-              throw new URIError(`${resourceUrl}: error fetching resource`);
+              throw new Error(`Error fetching resource`);
             }
           })
           .then((result) => resolve(result))
@@ -1723,7 +1723,7 @@ if (typeof window.Floorplan !== 'function') {
               return response.arrayBuffer();
             }
             else {
-              throw new URIError(`${resourceUrl}: error fetching resource`);
+              throw new Error(`Error fetching resource`);
             }
           })
           .then((result) => resolve(`data:image/jpeg;base64,${this.arrayBufferToBase64(result)}`))
