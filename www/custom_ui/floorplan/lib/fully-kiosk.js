@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.36
+  Version: 1.0.7.37
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,14 +14,14 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.36';
+      this.version = '1.0.7.37';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
       this.fullyInfo = {};
       this.fullyState = {};
-      this.iBeacons = [];
+      this.iBeacons = {};
     }
 
     init() {
@@ -104,15 +104,11 @@
     }
 
     addFullyEventHandlers() {
-      window['onFullyEvent'] = (e, id1, id2, id3, distance) => {
+      window['onFullyEvent'] = (e) => { window.dispatchEvent(new Event(e)); }
+
+      window['onFullyIBeaconEvent'] = (e, uuid, major, minor, distance) => {
         let event = new CustomEvent(e, {
-          detail: {
-            id1: id1,
-            id2: id2,
-            id3: id3,
-            distance: distance,
-            timestamp: new Date()
-          }
+          detail: { uuid: uuid, major: major, minor: minor, distance: distance, timestamp: new Date() }
         });
         window.dispatchEvent(event);
       }
@@ -147,7 +143,7 @@
       fully.bind('onBatteryLevelChanged', 'onFullyEvent("fully.onBatteryLevelChanged");')
       fully.bind('onMotion', 'onFullyEvent("fully.onMotion");') // Max. one per second
       fully.bind('onMovement', 'onFullyEvent("fully.onMovement");')
-      fully.bind('onIBeacon', 'onFullyEvent("fully.onIBeacon", "$id1", "$id2", "$id3", $distance);')
+      fully.bind('onIBeacon', 'onFullyIBeaconEvent("fully.onIBeacon", "$id1", "$id2", "$id3", $distance);')
     }
 
     onScreenOn() {
@@ -214,7 +210,7 @@
     }
 
     onMovement() {
-      this.logInfo('FULLY_KIOSK', 'Movement detected');
+      this.logDebug('FULLY_KIOSK', 'Movement detected');
 
       if (this.fullyInfo.supportsGeolocation) {
         this.updateCurrentPosition()
@@ -227,15 +223,13 @@
     onIBeacon(e) {
       let iBeacon = e.detail;
 
-      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(iBeacon)})`);
+      this.logDebug('FULLY_KIOSK', `iBeacon (${JSON.stringify(iBeacon)})`);
 
-      let existing = this.iBeacons.find(x => (x.id1 === iBeacon.id1) && (x.id2 === iBeacon.id2) && (x.id3 === iBeacon.id3));
-      if (existing) {
-        existing.timestamp = iBeacon.timestamp;
-      }
-      else {
-        this.iBeacons.push(iBeacon);
-      }
+      let iBeaconId = iBeacon.uuid;
+      iBeaconId += (iBeacon.major ? `_${iBeacon.major}` : '');
+      iBeaconId += (iBeacon.minor ? `_${iBeacon.minor}` : '');
+
+      this.iBeacons[iBeaconId] = iBeacon;      
     }
 
     sendMotionState() {
@@ -281,7 +275,7 @@
     newPayload(state) {
       this.updateFullyState();
 
-      return {
+      let payload = {
         state: state,
         brightness: this.fullyState.screenBrightness,
         attributes: {
@@ -299,9 +293,11 @@
           _isScreensaverOn: this.fullyState.isScreensaverOn,
           _latitude: this.position && this.position.coords.latitude,
           _longitude: this.position && this.position.coords.longitude,
-          _iBeacons: this.iBeacons,
+          _iBeacons: JSON.stringify(Object.keys(this.iBeacons).map(iBeaconId => this.iBeacons[iBeaconId])),
         }
       };
+      
+      return payload;
     }
 
     onAudioPlay() {
@@ -479,7 +475,7 @@
       return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
           (position) => {
-            this.logInfo('FULLY_KIOSK', `Current location: latitude: ${position.coords.latitude}, longitude: ${position.coords.longitude}`);
+            this.logDebug('FULLY_KIOSK', `Current location: latitude: ${position.coords.latitude}, longitude: ${position.coords.longitude}`);
             this.position = position;
             resolve(position);
           },
