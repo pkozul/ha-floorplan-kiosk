@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.32
+  Version: 1.0.7.33
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.32';
+      this.version = '1.0.7.33';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -40,7 +40,7 @@
       }
 
       if (!navigator.geolocation) {
-        this.logInfo('FULLY_KIOSK', "Geolocation is not supported or not enabled.");
+        this.logInfo('FULLY_KIOSK', "Geolocation is not supported or not enabled. You can enable it via Settings > Web Content Settings > Enable Geolocation Access (PLUS) and on the device via Google Settings > Location > Fully Kiosk Browser.");
       }
 
       this.fullyInfo = this.getFullyInfo(device);
@@ -77,6 +77,8 @@
 
         isMotionDetected: false,
         isScreensaverOn: false,
+
+        supportsGeolocation: (navigator.geolocation != undefined),
       };
     }
 
@@ -101,7 +103,7 @@
     }
 
     addFullyEventHandlers() {
-      window['onFullyEvent'] = (e) => { window.dispatchEvent(new Event(e)); }
+      window['onFullyEvent'] = (e, a, b, c, d) => { window.dispatchEvent(new Event(e, a, b, c, d)); }
 
       window.addEventListener('fully.screenOn', this.onScreenOn.bind(this));
       window.addEventListener('fully.screenOff', this.onScreenOff.bind(this));
@@ -201,14 +203,17 @@
 
     onMovement() {
       this.logInfo('FULLY_KIOSK', 'Movement detected');
-      this.updateCurrentPosition()
-        .then(() => {
-          this.sendMotionState();
-        });
+
+      if (this.fullyInfo.supportsGeolocation) {
+        this.updateCurrentPosition()
+          .then(() => {
+            this.sendMotionState();
+          });
+      }
     }
 
     onIBeacon(e) {
-      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(e)})`);
+      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(e)}) (${a}, ${b}, ${c}, ${d})`);
     }
 
     sendMotionState() {
@@ -445,7 +450,6 @@
 
     updateCurrentPosition() {
       if (!navigator.geolocation) {
-        this.logInfo('FULLY_KIOSK', "Geolocation is not supported by your browser");
         return Promise.resolve(undefined);
       }
 
