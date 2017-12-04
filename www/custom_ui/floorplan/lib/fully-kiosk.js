@@ -229,7 +229,9 @@
       iBeaconId += (iBeacon.major ? `_${iBeacon.major}` : '');
       iBeaconId += (iBeacon.minor ? `_${iBeacon.minor}` : '');
 
-      this.iBeacons[iBeaconId] = iBeacon;      
+      this.iBeacons[iBeaconId] = iBeacon;     
+      
+      this.sendMotionState();
     }
 
     sendMotionState() {
