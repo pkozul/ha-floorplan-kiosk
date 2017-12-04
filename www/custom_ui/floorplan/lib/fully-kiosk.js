@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.35
+  Version: 1.0.7.36
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,13 +14,14 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.35';
+      this.version = '1.0.7.36';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
       this.fullyInfo = {};
       this.fullyState = {};
+      this.iBeacons = [];
     }
 
     init() {
@@ -110,6 +111,7 @@
             id2: id2,
             id3: id3,
             distance: distance,
+            timestamp: new Date()
           }
         });
         window.dispatchEvent(event);
@@ -223,7 +225,17 @@
     }
 
     onIBeacon(e) {
-      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(e.detail)})`);
+      let iBeacon = e.detail;
+
+      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(iBeacon)})`);
+
+      let existing = this.iBeacons.find(x => (x.id1 === iBeacon.id1) && (x.id2 === iBeacon.id2) && (x.id3 === iBeacon.id3));
+      if (existing) {
+        existing.timestamp = iBeacon.timestamp;
+      }
+      else {
+        this.iBeacons.push(iBeacon);
+      }
     }
 
     sendMotionState() {
@@ -281,12 +293,13 @@
           device_id: this.fullyInfo.deviceId,
           battery_level: this.fullyState.batteryLevel,
           screen_brightness: this.fullyState.screenBrightness,
-          latitude: this.position && this.position.coords.latitude,
-          longitude: this.position && this.position.coords.longitude,
           _isScreenOn: this.fullyState.isScreenOn,
           _isPluggedIn: this.fullyState.isPluggedIn,
           _isMotionDetected: this.fullyState.isMotionDetected,
           _isScreensaverOn: this.fullyState.isScreensaverOn,
+          _latitude: this.position && this.position.coords.latitude,
+          _longitude: this.position && this.position.coords.longitude,
+          _iBeacons: this.iBeacons,
         }
       };
     }
