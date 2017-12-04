@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.33
+  Version: 1.0.7.34
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.33';
+      this.version = '1.0.7.34';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -103,7 +103,14 @@
     }
 
     addFullyEventHandlers() {
-      window['onFullyEvent'] = (e, a, b, c, d) => { window.dispatchEvent(new Event(e, a, b, c, d)); }
+      window['onFullyEvent'] = (e, a, b, c, d) => {
+        let event = new Event(e);
+        event['a'] = a;
+        event['b'] = a;
+        event['c'] = a;
+        event['d'] = a;
+        window.dispatchEvent(event);
+      }
 
       window.addEventListener('fully.screenOn', this.onScreenOn.bind(this));
       window.addEventListener('fully.screenOff', this.onScreenOff.bind(this));
