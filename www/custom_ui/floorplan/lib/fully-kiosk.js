@@ -98,18 +98,21 @@
     addFullyEventHandlers() {
       window['onFullyEvent'] = (e) => { window.dispatchEvent(new Event(e)); }
 
-      window.addEventListener('fully.screenOn', this.onFullyScreenOn.bind(this));
-      window.addEventListener('fully.screenOff', this.onFullyScreenOff.bind(this));
-      window.addEventListener('fully.networkDisconnect', this.onFullyNetworkDisconnect.bind(this));
-      window.addEventListener('fully.networkReconnect', this.onFullyNetworkReconnect.bind(this));
-      window.addEventListener('fully.internetDisconnect', this.onFullyInternetDisconnect.bind(this));
-      window.addEventListener('fully.internetReconnect', this.onFullyInternetReconnect.bind(this));
-      window.addEventListener('fully.unplugged', this.onFullyUnplugged.bind(this));
-      window.addEventListener('fully.pluggedAC', this.onFullyPluggedAC.bind(this));
-      window.addEventListener('fully.pluggedUSB', this.onFullyPluggedUSB.bind(this));
-      window.addEventListener('fully.onMotion', this.onFullyMotion.bind(this));
-      window.addEventListener('fully.onScreensaverStart', this.onFullyScreensaverStart.bind(this));
-      window.addEventListener('fully.onScreensaverStop', this.onFullyScreensaverStop.bind(this));
+      window.addEventListener('fully.screenOn', this.onScreenOn.bind(this));
+      window.addEventListener('fully.screenOff', this.onScreenOff.bind(this));
+      window.addEventListener('fully.networkDisconnect', this.onNetworkDisconnect.bind(this));
+      window.addEventListener('fully.networkReconnect', this.onNetworkReconnect.bind(this));
+      window.addEventListener('fully.internetDisconnect', this.onInternetDisconnect.bind(this));
+      window.addEventListener('fully.internetReconnect', this.onInternetReconnect.bind(this));
+      window.addEventListener('fully.unplugged', this.onUnplugged.bind(this));
+      window.addEventListener('fully.pluggedAC', this.onPluggedAC.bind(this));
+      window.addEventListener('fully.pluggedUSB', this.onPluggedUSB.bind(this));
+      window.addEventListener('fully.onScreensaverStart', this.onScreensaverStart.bind(this));
+      window.addEventListener('fully.onScreensaverStop', this.onScreensaverStop.bind(this));
+      window.addEventListener('fully.onBatteryLevelChanged', this.onBatteryLevelChanged.bind(this));
+      window.addEventListener('fully.onMotion', this.onMotion.bind(this));
+      window.addEventListener('fully.onMovement', this.onMovement.bind(this));
+      window.addEventListener('fully.onIBeacon', this.onIBeacon.bind(this));
 
       fully.bind('screenOn', 'onFullyEvent("fully.screenOn");')
       fully.bind('screenOff', 'onFullyEvent("fully.screenOff");')
@@ -120,68 +123,83 @@
       fully.bind('unplugged', 'onFullyEvent("fully.unplugged");')
       fully.bind('pluggedAC', 'onFullyEvent("fully.pluggedAC");')
       fully.bind('pluggedUSB', 'onFullyEvent("fully.pluggedUSB");')
-      fully.bind('onMotion', 'onFullyEvent("fully.onMotion");') // Max. one per second
       fully.bind('onScreensaverStart', 'onFullyEvent("fully.onScreensaverStart");')
       fully.bind('onScreensaverStop', 'onFullyEvent("fully.onScreensaverStop");')
+      fully.bind('onBatteryLevelChanged', 'onFullyEvent("fully.onBatteryLevelChanged");')
+      fully.bind('onMotion', 'onFullyEvent("fully.onMotion");') // Max. one per second
+      fully.bind('onMovement', 'onFullyEvent("fully.onMovement");')
+      fully.bind('onIBeacon', 'onFullyEvent("fully.onIBeacon", "$id1", "$id2", "$id3", $distance);')
     }
 
-    onFullyScreenOn() {
+    onScreenOn() {
       this.logDebug('FULLY_KIOSK', 'Screen turned on');
     }
 
-    onFullyScreenOff() {
+    onScreenOff() {
       this.logDebug('FULLY_KIOSK', 'Screen turned off');
     }
 
-    onFullyNetworkDisconnect() {
+    onNetworkDisconnect() {
       this.logDebug('FULLY_KIOSK', 'Network disconnected');
     }
 
-    onFullyNetworkReconnect() {
+    onNetworkReconnect() {
       this.logDebug('FULLY_KIOSK', 'Network reconnected');
     }
 
-    onFullyInternetDisconnect() {
+    onInternetDisconnect() {
       this.logDebug('FULLY_KIOSK', 'Internet disconnected');
     }
 
-    onFullyInternetReconnect() {
+    onInternetReconnect() {
       this.logDebug('FULLY_KIOSK', 'Internet reconnected');
     }
 
-    onFullyUnplugged() {
+    onUnplugged() {
       this.logDebug('FULLY_KIOSK', 'Unplugged AC');
       this.fullyState.isPluggedIn = false;
       this.sendPluggedState();
     }
 
-    onFullyPluggedAC() {
+    onPluggedAC() {
       this.logDebug('FULLY_KIOSK', 'Plugged AC');
       this.fullyState.isPluggedIn = true;
       this.sendPluggedState();
     }
 
-    onFullyPluggedUSB() {
+    onPluggedUSB() {
       this.logDebug('FULLY_KIOSK', 'Unplugged USB');
       this.logDebug('FULLY_KIOSK', 'Device plugged into USB');
     }
 
-    onFullyMotion() {
-      this.fullyState.isMotionDetected = true;
-      this.logDebug('FULLY_KIOSK', 'Motion detected');
-      this.sendMotionState();
-    }
-
-    onFullyScreensaverStart() {
+    onScreensaverStart() {
       this.fullyState.isScreensaverOn = true;
       this.logDebug('FULLY_KIOSK', 'Screensaver started');
       this.sendScreensaverState();
     }
 
-    onFullyScreensaverStop() {
+    onScreensaverStop() {
       this.fullyState.isScreensaverOn = false;
       this.logDebug('FULLY_KIOSK', 'Screensaver stopped');
       this.sendScreensaverState();
+    }
+
+    onBatteryLevelChanged() {
+      this.logDebug('FULLY_KIOSK', 'Battery level changed');
+    }
+
+    onMotion() {
+      this.fullyState.isMotionDetected = true;
+      this.logDebug('FULLY_KIOSK', 'Motion detected');
+      this.sendMotionState();
+    }
+
+    onMovement() {
+      this.logInfo('FULLY_KIOSK', 'Movement detected');
+    }
+
+    onIBeacon(e, a, b, c, d) {
+      this.logInfo('FULLY_KIOSK', `iBeacon (${e}, ${a}, ${b}, ${c}, ${d})`);
     }
 
     sendMotionState() {
