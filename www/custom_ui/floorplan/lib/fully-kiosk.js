@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.37
+  Version: 1.0.7.38
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.37';
+      this.version = '1.0.7.38';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -23,6 +23,10 @@
       this.fullyState = {};
       this.iBeacons = {};
     }
+
+    /***************************************************************************************************************************/
+    /* Initialization
+    /***************************************************************************************************************************/
 
     init() {
       this.logInfo('VERSION', `Fully Kiosk v${this.version}`);
@@ -60,6 +64,11 @@
       this.sendMediaPlayerState();
     }
 
+    initAudio() {
+      this.audio = new Audio();
+      this.isAudioPlaying = false;
+    }
+
     getFullyInfo(device) {
       return {
         motionBinarySensorEntityId: device.motion_sensor,
@@ -90,10 +99,9 @@
       this.fullyState.isPluggedIn = fully.isPlugged();
     }
 
-    initAudio() {
-      this.audio = new Audio();
-      this.isAudioPlaying = false;
-    }
+    /***************************************************************************************************************************/
+    /* Set up event handlers
+    /***************************************************************************************************************************/
 
     addAudioEventHandlers() {
       this.audio.addEventListener('play', this.onAudioPlay.bind(this));
@@ -145,6 +153,10 @@
       fully.bind('onMovement', 'onFullyEvent("fully.onMovement");')
       fully.bind('onIBeacon', 'onFullyIBeaconEvent("fully.onIBeacon", "$id1", "$id2", "$id3", $distance);')
     }
+
+    /***************************************************************************************************************************/
+    /* Fully Kiosk events
+    /***************************************************************************************************************************/
 
     onScreenOn() {
       this.logDebug('FULLY_KIOSK', 'Screen turned on');
@@ -229,10 +241,44 @@
       iBeaconId += (iBeacon.major ? `_${iBeacon.major}` : '');
       iBeaconId += (iBeacon.minor ? `_${iBeacon.minor}` : '');
 
-      this.iBeacons[iBeaconId] = iBeacon;     
-      
+      this.iBeacons[iBeaconId] = iBeacon;
+
       this.sendMotionState();
+
+      this.sendIBeaconState(iBeacon);
     }
+
+    /***************************************************************************************************************************/
+    /* HTML5 Audio
+    /***************************************************************************************************************************/
+
+    onAudioPlay() {
+      this.isAudioPlaying = true;
+      this.sendMediaPlayerState();
+    }
+
+    onAudioPlaying() {
+      this.isAudioPlaying = true;
+      this.sendMediaPlayerState();
+    }
+
+    onAudioPause() {
+      this.isAudioPlaying = false;
+      this.sendMediaPlayerState();
+    }
+
+    onAudioEnded() {
+      this.isAudioPlaying = false;
+      this.sendMediaPlayerState();
+    }
+
+    onAudioVolumeChange() {
+      this.sendMediaPlayerState();
+    }
+
+    /***************************************************************************************************************************/
+    /* Send state to Home Assistant
+    /***************************************************************************************************************************/
 
     sendMotionState() {
       if (!this.fullyInfo.motionBinarySensorEntityId) {
@@ -243,7 +289,7 @@
       let timeout = this.fullyState.isMotionDetected ? 5000 : 10000;
 
       let state = this.fullyState.isMotionDetected ? "on" : "off";
-      this.sendState(`/api/states/${this.fullyInfo.motionBinarySensorEntityId}`, this.newPayload(state), () => {
+      this.PostToHomeAssistant(`/api/states/${this.fullyInfo.motionBinarySensorEntityId}`, this.newPayload(state), () => {
         this.sendMotionStateTimer = setTimeout(() => {
           this.fullyState.isMotionDetected = false;
           this.sendMotionState();
@@ -262,7 +308,7 @@
       }
 
       let state = this.fullyState.isPluggedIn ? "on" : "off";
-      this.sendState(`/api/states/${this.fullyInfo.pluggedBinarySensorEntityId}`, this.newPayload(state));
+      this.PostToHomeAssistant(`/api/states/${this.fullyInfo.pluggedBinarySensorEntityId}`, this.newPayload(state));
     }
 
     sendScreensaverState() {
@@ -271,7 +317,38 @@
       }
 
       let state = this.fullyState.isScreensaverOn ? "on" : "off";
-      this.sendState(`/api/states/${this.fullyInfo.screensaverLightEntityId}`, this.newPayload(state));
+      this.PostToHomeAssistant(`/api/states/${this.fullyInfo.screensaverLightEntityId}`, this.newPayload(state));
+    }
+
+    sendMediaPlayerState() {
+      if (!this.fullyInfo.mediaPlayerEntityId) {
+        return;
+      }
+
+      let state = this.isAudioPlaying ? "playing" : "idle";
+      this.PostToHomeAssistant(`/api/fully_kiosk/media_player/${this.fullyInfo.mediaPlayerEntityId}`, this.newPayload(state));
+    }
+
+    sendIBeaconState(iBeacon) {
+      if (!this.fullyInfo.motionBinarySensorEntityId) {
+        return;
+      }
+
+      let payload = {
+        mac: undefined,
+        dev_id: iBeacon.uuid,
+        host_name: undefined,
+        location_name: this.fullyInfo.macAddress,
+        gps: this.position ? [this.position.coords.latitude, this.position.coords.longitude] : undefined,
+        gps_accuracy: undefined,
+        battery: undefined,
+
+        uuid: iBeacon.uuid,
+        major: iBeacon.major,
+        minor: iBeacon.minor,
+      };
+
+      this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
     }
 
     newPayload(state) {
@@ -298,44 +375,13 @@
           _iBeacons: JSON.stringify(Object.keys(this.iBeacons).map(iBeaconId => this.iBeacons[iBeaconId])),
         }
       };
-      
+
       return payload;
     }
 
-    onAudioPlay() {
-      this.isAudioPlaying = true;
-      this.sendMediaPlayerState();
-    }
-
-    onAudioPlaying() {
-      this.isAudioPlaying = true;
-      this.sendMediaPlayerState();
-    }
-
-    onAudioPause() {
-      this.isAudioPlaying = false;
-      this.sendMediaPlayerState();
-    }
-
-    onAudioEnded() {
-      this.isAudioPlaying = false;
-      this.sendMediaPlayerState();
-    }
-
-    onAudioVolumeChange() {
-      this.sendMediaPlayerState();
-    }
-
-    sendMediaPlayerState() {
-      if (!this.fullyInfo.mediaPlayerEntityId) {
-        return;
-      }
-
-      let state = this.isAudioPlaying ? "playing" : "idle";
-      this.sendState(`/api/fully_kiosk/media_player/${this.fullyInfo.mediaPlayerEntityId}`, this.newPayload(state));
-    }
-
-    /*  Functions */
+    /***************************************************************************************************************************/
+    /* Geolocation
+    /***************************************************************************************************************************/
 
     setScreenBrightness(brightness) {
       fully.setScreenBrightness(brightness);
@@ -372,7 +418,7 @@
       this.audio.volume = level;
     }
 
-    sendState(url, payload, onSuccess) {
+    PostToHomeAssistant(url, payload, onSuccess) {
       let options = {
         type: 'POST',
         url: url,
@@ -467,7 +513,9 @@
         'call_service');
     }
 
-    /* Geolocation */
+    /***************************************************************************************************************************/
+    /* Geolocation
+    /***************************************************************************************************************************/
 
     updateCurrentPosition() {
       if (!navigator.geolocation) {
@@ -488,7 +536,9 @@
       })
     }
 
-    /* Errors / logging */
+    /***************************************************************************************************************************/
+    /* Errors / logging
+    /***************************************************************************************************************************/
 
     handleError(message) {
       this.floorplan.handleError(message);
@@ -508,6 +558,28 @@
 
     logDebug(area, message) {
       this.floorplan.logDebug(area, message);
+    }
+
+    /***************************************************************************************************************************/
+    /* Utility functions
+    /***************************************************************************************************************************/
+
+    debounce(func, wait, immediate) {
+      let timeout;
+      return function () {
+        let context = this, args = arguments;
+
+        let later = function () {
+          timeout = null;
+          if (!immediate) func.apply(context, args);
+        };
+
+        let callNow = immediate && !timeout;
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+
+        if (callNow) func.apply(context, args);
+      };
     }
   }
 
