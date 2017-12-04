@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.38
+  Version: 1.0.7.39
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.38';
+      this.version = '1.0.7.39';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -336,7 +336,8 @@
 
       let payload = {
         mac: undefined,
-        dev_id: iBeacon.uuid,
+        //dev_id: iBeacon.uuid,
+        dev_id: '1234567890',
         host_name: undefined,
         location_name: this.fullyInfo.macAddress,
         gps: this.position ? [this.position.coords.latitude, this.position.coords.longitude] : undefined,
@@ -346,6 +347,7 @@
         uuid: iBeacon.uuid,
         major: iBeacon.major,
         minor: iBeacon.minor,
+        minor: iBeacon.distance,
       };
 
       this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
