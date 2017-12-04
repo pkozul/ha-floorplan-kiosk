@@ -1,6 +1,6 @@
 /*
   Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.31
+  Version: 1.0.7.32
   By Petar Kozul
   https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.31';
+      this.version = '1.0.7.32';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -39,9 +39,14 @@
         return;
       }
 
+      if (!navigator.geolocation) {
+        this.logInfo('FULLY_KIOSK', "Geolocation is not supported or not enabled.");
+      }
+
       this.fullyInfo = this.getFullyInfo(device);
 
       this.updateFullyState();
+      this.updateCurrentPosition();
 
       this.initAudio();
       this.addAudioEventHandlers();
@@ -196,10 +201,14 @@
 
     onMovement() {
       this.logInfo('FULLY_KIOSK', 'Movement detected');
+      this.updateCurrentPosition()
+        .then(() => {
+          this.sendMotionState();
+        });
     }
 
-    onIBeacon(e, a, b, c, d) {
-      this.logInfo('FULLY_KIOSK', `iBeacon (${e}, ${a}, ${b}, ${c}, ${d})`);
+    onIBeacon(e) {
+      this.logInfo('FULLY_KIOSK', `iBeacon (${JSON.stringify(e)})`);
     }
 
     sendMotionState() {
@@ -253,10 +262,12 @@
           media_content_id: this.audio.src,
           address: this.fullyInfo.macAddress,
           mac_address: this.fullyInfo.macAddress,
-          serial_number: 'G0W0MA0771941EJU',
-          device_id: '6ac37a44-802cb151',
+          serial_number: this.fullyInfo.serialNumber,
+          device_id: this.fullyInfo.deviceId,
           battery_level: this.fullyState.batteryLevel,
           screen_brightness: this.fullyState.screenBrightness,
+          latitude: this.position && this.position.coords.latitude,
+          longitude: this.position && this.position.coords.longitude,
           _isScreenOn: this.fullyState.isScreenOn,
           _isPluggedIn: this.fullyState.isPluggedIn,
           _isMotionDetected: this.fullyState.isMotionDetected,
@@ -430,11 +441,35 @@
         'call_service');
     }
 
+    /* Geolocation */
+
+    updateCurrentPosition() {
+      if (!navigator.geolocation) {
+        this.logInfo('FULLY_KIOSK', "Geolocation is not supported by your browser");
+        return Promise.resolve(undefined);
+      }
+
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            this.logInfo('FULLY_KIOSK', `Current location: latitude: ${position.coords.latitude}, longitude: ${position.coords.longitude}`);
+            this.position = position;
+            resolve(position);
+          },
+          (err) => {
+            this.logError('FULLY_KIOSK', 'Unable to retrieve location');
+            reject(err);
+          });
+      })
+    }
+
+    /* Errors / logging */
+
     handleError(message) {
       this.floorplan.handleError(message);
     }
 
-    logError(message) {
+    logError(area, message) {
       this.floorplan.logError(message);
     }
 
