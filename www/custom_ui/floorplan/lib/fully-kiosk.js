@@ -351,7 +351,7 @@
       //this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
 
       let fullyId = this.fullyInfo.macAddress.replace(/[:-]/g, "_");
-      let payload = { topic: `room_presence/${fullyId}`, payload: `{ \"id\": \"${iBeacon.uuid}\", \"distance\": ${iBeacon.distance} }` };
+      payload = { topic: `room_presence/${fullyId}`, payload: `{ \"id\": \"${iBeacon.uuid}\", \"distance\": ${iBeacon.distance} }` };
       this.floorplan.hass.callService('mqtt', 'publish', payload);
     }
 
