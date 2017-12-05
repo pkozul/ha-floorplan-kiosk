@@ -31,11 +31,6 @@
     init() {
       this.logInfo('VERSION', `Fully Kiosk v${this.version}`);
 
-      let iBeacon = {
-        uuid: 'papa_beacon_some_uuid',
-        distance: 7.77,
-      }
-
       if (typeof fully === "undefined") {
         this.logInfo('FULLY_KIOSK', `Fully Kiosk is not running or not enabled. You can enable it via Settings > Other Settings > Enable Website Integration (PLUS).`);
         return;
