@@ -1,6 +1,6 @@
 /*
  Floorplan for Home Assistant
- Version: 1.0.7.55
+ Version: 1.0.7.56
  By Petar Kozul
  https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@
 
   class Floorplan {
     constructor() {
-      this.version = '1.0.7.55';
+      this.version = '1.0.7.56';
       this.doc = {};
       this.hass = {};
       this.openMoreInfo = () => { };
@@ -278,7 +278,8 @@
       return this.fetchTextResource(imageUrl, true)
         .then(result => {
           let svg = $(result).siblings('svg')[0];
-
+          svg = svg ? svg : $(result);
+          
           if (pageInfo) {
             $(svg).attr('id', pageInfo.config.page_id);
           }
@@ -378,7 +379,8 @@
           this.logDebug('IMAGE', `${entityId} (setting image: ${imageUrl})`);
 
           let svgElement = $(result).siblings('svg')[0];
-
+          svgElement = svgElement ? svgElement : $(result);
+          
           let height = Number.parseFloat($(svgElement).attr('height'));
           let width = Number.parseFloat($(svgElement).attr('width'));
           if (!$(svgElement).attr('viewBox')) {
@@ -1206,8 +1208,10 @@
         for (let svgElementId in ruleInfo.svgElementInfos) {
           let svgElementInfo = ruleInfo.svgElementInfos[svgElementId];
 
-          let wasTransitionApplied = this.handleEntityUpdateTransitionCss(entityInfo, ruleInfo, svgElementInfo, isInitialLoad);
-          this.handleUpdateCss(entityInfo, svgElementInfo, ruleInfo, wasTransitionApplied);
+          if (svgElementInfo.svgElement) { // images may not have been updated yet
+            let wasTransitionApplied = this.handleEntityUpdateTransitionCss(entityInfo, ruleInfo, svgElementInfo, isInitialLoad);
+            this.handleUpdateCss(entityInfo, svgElementInfo, ruleInfo, wasTransitionApplied);
+          }
         }
       }
     }
@@ -1322,10 +1326,12 @@
         }
       }
       else {
-        for (let otherClassName of this.getArray(svgElement.classList)) {
-          if ((otherClassName !== targetClass) && (otherClassName !== 'ha-entity')) {
-            if (svgElementInfo.originalClasses.indexOf(otherClassName) < 0) {
-              obsoleteClasses.push(otherClassName);
+        if (svgElement.classList) {
+          for (let otherClassName of this.getArray(svgElement.classList)) {
+            if ((otherClassName !== targetClass) && (otherClassName !== 'ha-entity')) {
+              if (svgElementInfo.originalClasses.indexOf(otherClassName) < 0) {
+                obsoleteClasses.push(otherClassName);
+              }
             }
           }
         }
