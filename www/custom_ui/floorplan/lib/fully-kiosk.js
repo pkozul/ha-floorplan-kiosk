@@ -1,8 +1,8 @@
 /*
-  Floorplan Fully Kiosk for Home Assistant
-  Version: 1.0.7.42
-  By Petar Kozul
-  https://github.com/pkozul/ha-floorplan
+Floorplan Fully Kiosk for Home Assistant
+Version: 1.0.7.43
+By Petar Kozul
+https://github.com/pkozul/ha-floorplan
 */
 
 'use strict';
@@ -14,7 +14,7 @@
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.42';
+      this.version = '1.0.7.43';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -29,7 +29,10 @@
     /***************************************************************************************************************************/
 
     init() {
-      this.logInfo('VERSION', `Fully Kiosk v${this.version}`);
+      //let payload = { id: 'papa_beacon_some_uuid', distance: 22.22 };
+      //this.PostToHomeAssistant(`/api/room_presence/111_222_333_444_555`, payload);
+
+      this.logInfo('VERSION', `Fully Kiosk v${this.version}`);screen
 
       if (typeof fully === "undefined") {
         this.logInfo('FULLY_KIOSK', `Fully Kiosk is not running or not enabled. You can enable it via Settings > Other Settings > Enable Website Integration (PLUS).`);
@@ -350,9 +353,14 @@
 
       //this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
 
+      /*
       let fullyId = this.fullyInfo.macAddress.replace(/[:-]/g, "_");
       payload = { topic: `room_presence/${fullyId}`, payload: `{ \"id\": \"${iBeacon.uuid}\", \"distance\": ${iBeacon.distance} }` };
       this.floorplan.hass.callService('mqtt', 'publish', payload);
+      */
+
+      payload = { id: iBeacon.uuid, distance: iBeacon.distance };
+      this.PostToHomeAssistant(`/api/room_presence/${this.fullyInfo.macAddress}`, payload);
     }
 
     newPayload(state) {
