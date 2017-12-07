@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.47
+Version: 1.0.7.48
 By Petar Kozul
 https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@ https://github.com/pkozul/ha-floorplan
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.47';
+      this.version = '1.0.7.48';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -22,6 +22,8 @@ https://github.com/pkozul/ha-floorplan
       this.fullyInfo = {};
       this.fullyState = {};
       this.iBeacons = {};
+
+      this.onIBeaconDebounced = (e) => { };
     }
 
     /***************************************************************************************************************************/
@@ -56,6 +58,8 @@ https://github.com/pkozul/ha-floorplan
       }
 
       this.fullyInfo = this.getFullyInfo(device);
+
+      this.onIBeaconDebounced = this.debounce((e) => { return this.onIBeacon(e); }, 10000);
 
       this.updateFullyState();
       this.updateCurrentPosition();
@@ -144,7 +148,7 @@ https://github.com/pkozul/ha-floorplan
       window.addEventListener('fully.onBatteryLevelChanged', this.onBatteryLevelChanged.bind(this));
       window.addEventListener('fully.onMotion', this.onMotion.bind(this));
       window.addEventListener('fully.onMovement', this.onMovement.bind(this));
-      window.addEventListener('fully.onIBeacon', this.onIBeacon.bind(this));
+      window.addEventListener('fully.onIBeacon', this.onIBeaconDebounced.bind(this));
 
       fully.bind('screenOn', 'onFullyEvent("fully.screenOn");')
       fully.bind('screenOff', 'onFullyEvent("fully.screenOff");')
