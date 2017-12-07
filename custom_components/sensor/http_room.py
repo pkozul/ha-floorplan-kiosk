@@ -18,10 +18,11 @@ import voluptuous as vol
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.sensor import PLATFORM_SCHEMA
 from homeassistant.const import (
-    CONF_NAME, CONF_TIMEOUT, STATE_NOT_HOME, ATTR_ID)
+    CONF_NAME, CONF_TIMEOUT, STATE_NOT_HOME, ATTR_ID, ATTR_LATITUDE, ATTR_LONGITUDE)
 from homeassistant.core import callback
 from homeassistant.helpers.entity import Entity
 from homeassistant.util import dt, slugify
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,6 +31,9 @@ DEPENDENCIES = ['http']
 ATTR_DEVICE_ID = 'device_id'
 ATTR_DISTANCE = 'distance'
 ATTR_ROOM = 'room'
+ATTR_UUID = 'uuid'
+ATTR_MAJOR = 'major'
+ATTR_MINOR = 'minor'
 
 CONF_DEVICE_ID = 'device_id'
 CONF_AWAY_TIMEOUT = 'away_timeout'
@@ -37,7 +41,6 @@ CONF_AWAY_TIMEOUT = 'away_timeout'
 DEFAULT_AWAY_TIMEOUT = 0
 DEFAULT_NAME = 'Room Sensor'
 DEFAULT_TIMEOUT = 5
-DEFAULT_TOPIC = 'room_presence'
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Required(CONF_DEVICE_ID): cv.string,
@@ -80,12 +83,22 @@ class HttpRoomSensor(HomeAssistantView, Entity):
             timedelta(seconds=consider_home) if consider_home \
             else None
         self._distance = None
-        self._updated = Noneibe
+        self._uuid = None
+        self._major = None
+        self._minor = None
+        self._latitude = None
+        self._longitude = None
+        self._updated = None
 
-    def update_state(self, device_id, room, distance):
+    def update_state(self, device_id, room, distance, uuid, major, minor, latitude, longitude):
         """Update the sensor state."""
         self._state = room
         self._distance = distance
+        self._uuid = uuid
+        self._major = major
+        self._minor = minor
+        self._latitude = latitude
+        self._longitude = longitude
         self._updated = dt.utcnow()
         _LOGGER.info('Updated device presence: %s', device_id)
 
@@ -113,14 +126,23 @@ class HttpRoomSensor(HomeAssistantView, Entity):
 
         data = yield from request.json()
 
-        # device_id = slugify(data.get(ATTR_ID)).upper()
-        room = data.get('room')
-        distance = data.get('distance')
+        room = data.get(ATTR_ROOM)
+        distance = data.get(ATTR_DISTANCE)
+        uuid = data.get(ATTR_UUID)
+        major = data.get(ATTR_MAJOR)
+        minor = data.get(ATTR_MINOR)
+        latitude = data.get(ATTR_LATITUDE)
+        longitude = data.get(ATTR_LATITUDE)
 
         device = {
             ATTR_DEVICE_ID: device_id,
             ATTR_ROOM: room,
-            ATTR_DISTANCE: distance
+            ATTR_DISTANCE: distance,
+            ATTR_UUID: uuid,
+            ATTR_MAJOR: major,
+            ATTR_MINOR: minor,
+            ATTR_LATITUDE: latitude,
+            ATTR_LONGITUDE: longitude
         }
 
         _LOGGER.info('Received presence data: %s', device)
@@ -141,7 +163,12 @@ class HttpRoomSensor(HomeAssistantView, Entity):
     def device_state_attributes(self):
         """Return the state attributes."""
         return {
-            ATTR_DISTANCE: self._distance
+            ATTR_DISTANCE: self._distance,
+            ATTR_UUID: self._uuid,
+            ATTR_MAJOR: self._major,
+            ATTR_MINOR: self._minor,
+            ATTR_LATITUDE: self._latitude,
+            ATTR_LONGITUDE: self._longitude
         }
 
     @property
@@ -162,7 +189,7 @@ def _parse_update_data(topic, data):
     parts = topic.split('/')
     room = parts[-1]
     device_id = slugify(data.get(ATTR_ID)).upper()
-    distance = data.get('distance')
+    distance = data.get(ATTR_DISTANCE)
     parsed_data = {
         ATTR_DEVICE_ID: device_id,
         ATTR_ROOM: room,
