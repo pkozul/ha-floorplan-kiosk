@@ -400,7 +400,9 @@ https://github.com/pkozul/ha-floorplan
 
       let payload = {
         room: this.fullyInfo.locationName,
-        id: beacon.uuid,
+        uuid: beacon.uuid,
+        major: beacon.major,
+        minor: beacon.minor,
         distance: beacon.distance,
         latitude: this.position ? this.position.coords.latitude : undefined,
         longitude: this.position ? this.position.coords.longitude : undefined,
