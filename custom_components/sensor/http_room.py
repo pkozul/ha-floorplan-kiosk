@@ -132,7 +132,7 @@ class HttpRoomSensor(HomeAssistantView, Entity):
         major = data.get(ATTR_MAJOR)
         minor = data.get(ATTR_MINOR)
         latitude = data.get(ATTR_LATITUDE)
-        longitude = data.get(ATTR_LATITUDE)
+        longitude = data.get(ATTR_LONGITUDE)
 
         device = {
             ATTR_DEVICE_ID: device_id,
