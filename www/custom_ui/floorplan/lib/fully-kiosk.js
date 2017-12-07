@@ -16,7 +16,7 @@ https://github.com/pkozul/ha-floorplan
     constructor(floorplan) {
       this.version = '1.0.7.45';
 
-      this.floor3plan = floorplan;
+      this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
       this.fullyInfo = {};
