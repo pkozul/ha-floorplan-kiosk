@@ -23,7 +23,7 @@ https://github.com/pkozul/ha-floorplan
       this.fullyState = {};
       this.beacons = {};
 
-      this.onBeaconHandlers = {};
+      this.throttledFunctions = {};
     }
 
     /***************************************************************************************************************************/
@@ -145,7 +145,10 @@ https://github.com/pkozul/ha-floorplan
       window.addEventListener('fully.onScreensaverStop', this.onScreensaverStop.bind(this));
       window.addEventListener('fully.onBatteryLevelChanged', this.onBatteryLevelChanged.bind(this));
       window.addEventListener('fully.onMotion', this.onMotion.bind(this));
-      window.addEventListener('fully.onMovement', this.onMovement.bind(this));
+
+      if (this.fullyInfo.supportsGeolocation) {
+        window.addEventListener('fully.onMovement', this.onMovement.bind(this));
+      }
 
       if (this.fullyInfo.locationName) {
         this.logInfo('KIOSK', 'Listening for beacon messages');
@@ -236,8 +239,19 @@ https://github.com/pkozul/ha-floorplan
       this.sendMotionState();
     }
 
-    onMovement() {
-      this.logDebug('FULLY_KIOSK', 'Movement detected');
+    onMovement(e) {
+      let functionId = 'onMovement';
+      let throttledFunc = this.throttledFunctions[functionId];
+      if (!throttledFunc) {
+        throttledFunc = this.throttle(this.onMovementThrottled.bind(this), 10000);
+        this.throttledFunctions[functionId] = throttledFunc;
+      }
+
+      return throttledFunc(e);
+    }
+
+    onMovementThrottled() {
+      this.logDebug('FULLY_KIOSK', 'Movement detected (throttled)');
 
       if (this.fullyInfo.supportsGeolocation) {
         this.updateCurrentPosition()
@@ -248,11 +262,11 @@ https://github.com/pkozul/ha-floorplan
     }
 
     onIBeacon(e) {
-      let uuid = e.detail.uuid;
-      let throttledFunc = this.onBeaconHandlers[uuid];
+      let functionId = e.detail.uuid;
+      let throttledFunc = this.throttledFunctions[functionId];
       if (!throttledFunc) {
-        throttledFunc = this.throttle(this.onIBeaconThrottled, 10000).bind(this);
-        this.onBeaconHandlers[uuid] = throttledFunc;
+        throttledFunc = this.throttle(this.onIBeaconThrottled.bind(this), 10000);
+        this.throttledFunctions[functionId] = throttledFunc;
       }
 
       return throttledFunc(e);
@@ -261,7 +275,7 @@ https://github.com/pkozul/ha-floorplan
     onIBeaconThrottled(e) {
       let beacon = e.detail;
 
-      this.logDebug('FULLY_KIOSK', `Received beacon message (${JSON.stringify(beacon)})`);
+      this.logDebug('FULLY_KIOSK', `Received (throttled) beacon message (${JSON.stringify(beacon)})`);
 
       let beaconId = beacon.uuid;
       beaconId += (beacon.major ? `_${beacon.major}` : '');
@@ -269,7 +283,6 @@ https://github.com/pkozul/ha-floorplan
 
       this.beacons[beaconId] = beacon;
 
-      this.sendMotionState();
       this.sendBeaconState(beacon);
     }
 
