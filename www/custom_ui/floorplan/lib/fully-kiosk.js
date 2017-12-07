@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.43
+Version: 1.0.7.45
 By Petar Kozul
 https://github.com/pkozul/ha-floorplan
 */
@@ -14,9 +14,9 @@ https://github.com/pkozul/ha-floorplan
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.43';
+      this.version = '1.0.7.45';
 
-      this.floorplan = floorplan;
+      this.floor3plan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
       this.fullyInfo = {};
@@ -29,10 +29,14 @@ https://github.com/pkozul/ha-floorplan
     /***************************************************************************************************************************/
 
     init() {
-      //let payload = { id: 'papa_beacon_some_uuid', distance: 22.22 };
-      //this.PostToHomeAssistant(`/api/room_presence/111_222_333_444_555`, payload);
+      this.logInfo('VERSION', `Fully Kiosk v${this.version}`);
 
-      this.logInfo('VERSION', `Fully Kiosk v${this.version}`);screen
+      /*
+      let uuid = 'a445425b-c718-461c-a876-aa647abd99d4';
+      let deviceId = uuid.replace(/[-_]/g, '').toUpperCase();
+      let payload = { room: 'entry hall', id: uuid, distance: 123.45 };
+      this.PostToHomeAssistant(`/api/room_presence/${deviceId}`, payload);
+      */
 
       if (typeof fully === "undefined") {
         this.logInfo('FULLY_KIOSK', `Fully Kiosk is not running or not enabled. You can enable it via Settings > Other Settings > Enable Website Integration (PLUS).`);
@@ -78,6 +82,8 @@ https://github.com/pkozul/ha-floorplan
         pluggedBinarySensorEntityId: device.plugged_sensor,
         screensaverLightEntityId: device.screensaver_light,
         mediaPlayerEntityId: device.media_player,
+
+        locationName: device.presence_detection.location_name,
 
         startUrl: fully.getStartUrl(),
         currentLocale: fully.getCurrentLocale(),
@@ -337,6 +343,20 @@ https://github.com/pkozul/ha-floorplan
         return;
       }
 
+      /*
+      let payload = {
+        name: this.fullyInfo.locationName,
+        address: this.fullyInfo.macAddress,
+        device: iBeacon.uuid,
+        beaconUUID: iBeacon.uuid,
+        latitude: this.position ? this.position.coords.latitude : undefined,
+        longitude: this.position ? this.position.coords.longitude : undefined,
+        entry: 1,
+      }
+      this.PostToHomeAssistant(`/api/geofency`, payload, undefined, false);
+      */
+
+      /*
       let payload = {
         mac: undefined,
         dev_id: iBeacon.uuid.replace(/-/g, '_'),
@@ -351,7 +371,8 @@ https://github.com/pkozul/ha-floorplan
         minor: iBeacon.minor,
       };
 
-      //this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
+      this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
+      */
 
       /*
       let fullyId = this.fullyInfo.macAddress.replace(/[:-]/g, "_");
@@ -359,8 +380,9 @@ https://github.com/pkozul/ha-floorplan
       this.floorplan.hass.callService('mqtt', 'publish', payload);
       */
 
-      payload = { id: iBeacon.uuid, distance: iBeacon.distance };
-      this.PostToHomeAssistant(`/api/room_presence/${this.fullyInfo.macAddress}`, payload);
+      let deviceId = iBeacon.uuid.replace(/[-_]/g, '').toUpperCase();
+      payload = { room: this.fullyInfo.locationName, id: iBeacon.uuid, distance: iBeacon.distance };
+      this.PostToHomeAssistant(`/api/room_presence/${deviceId}`, payload);
     }
 
     newPayload(state) {
@@ -435,7 +457,7 @@ https://github.com/pkozul/ha-floorplan
         type: 'POST',
         url: url,
         headers: { "X-HA-Access": this.authToken },
-        data: JSON.stringify(payload),
+        data: stringify ? JSON.stringify(payload) : payload,
         success: function (result) {
           this.logDebug('FULLY_KIOSK', `Posted state: ${url} ${JSON.stringify(payload)}`);
           if (onSuccess) {
