@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.48
+Version: 1.0.7.49
 By Petar Kozul
 https://github.com/pkozul/ha-floorplan
 */
@@ -14,7 +14,7 @@ https://github.com/pkozul/ha-floorplan
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.48';
+      this.version = '1.0.7.49';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
@@ -23,7 +23,7 @@ https://github.com/pkozul/ha-floorplan
       this.fullyState = {};
       this.iBeacons = {};
 
-      this.onIBeaconDebounced = (e) => { };
+      this.onIBeaconHandlers = {};
     }
 
     /***************************************************************************************************************************/
@@ -59,8 +59,6 @@ https://github.com/pkozul/ha-floorplan
 
       this.fullyInfo = this.getFullyInfo(device);
 
-      this.onIBeaconDebounced = this.debounce((e) => { return this.onIBeacon(e); }, 10000);
-
       this.updateFullyState();
       this.updateCurrentPosition();
 
@@ -87,7 +85,7 @@ https://github.com/pkozul/ha-floorplan
         screensaverLightEntityId: device.screensaver_light,
         mediaPlayerEntityId: device.media_player,
 
-        locationName: device.presence_detection.location_name,
+        locationName: device.presence_detection ? device.presence_detection.location_name : undefined,
 
         startUrl: fully.getStartUrl(),
         currentLocale: fully.getCurrentLocale(),
@@ -148,7 +146,11 @@ https://github.com/pkozul/ha-floorplan
       window.addEventListener('fully.onBatteryLevelChanged', this.onBatteryLevelChanged.bind(this));
       window.addEventListener('fully.onMotion', this.onMotion.bind(this));
       window.addEventListener('fully.onMovement', this.onMovement.bind(this));
-      window.addEventListener('fully.onIBeacon', this.onIBeaconDebounced.bind(this));
+
+      if (this.fullyInfo.locationName) {
+        this.logInfo('KIOSK', 'Listening for iBeacon messages');
+        window.addEventListener('fully.onIBeacon', this.onIBeacon.bind(this));
+      }
 
       fully.bind('screenOn', 'onFullyEvent("fully.screenOn");')
       fully.bind('screenOff', 'onFullyEvent("fully.screenOff");')
@@ -246,9 +248,20 @@ https://github.com/pkozul/ha-floorplan
     }
 
     onIBeacon(e) {
+      let uuid = e.detail.uuid;
+      let throttledFunc = this.onIBeaconHandlers[uuid];
+      if (!throttledFunc) {
+        throttledFunc = this.throttle(this.onIBeaconThrottled, 10000).bind(this);
+        this.onIBeaconHandlers[uuid]  = throttledFunc;
+      }
+
+      return throttledFunc(e);
+    }
+      
+    onIBeaconThrottled(e) {
       let iBeacon = e.detail;
 
-      this.logDebug('FULLY_KIOSK', `iBeacon (${JSON.stringify(iBeacon)})`);
+      this.logDebug('FULLY_KIOSK', `Received iBeacon message (${JSON.stringify(iBeacon)})`);
 
       let iBeaconId = iBeacon.uuid;
       iBeaconId += (iBeacon.major ? `_${iBeacon.major}` : '');
@@ -257,7 +270,6 @@ https://github.com/pkozul/ha-floorplan
       this.iBeacons[iBeaconId] = iBeacon;
 
       this.sendMotionState();
-
       this.sendIBeaconState(iBeacon);
     }
 
@@ -602,22 +614,152 @@ https://github.com/pkozul/ha-floorplan
     /* Utility functions
     /***************************************************************************************************************************/
 
-    debounce(func, wait, immediate) {
-      let timeout;
-      return function () {
-        let context = this, args = arguments;
+    debounce(func, wait, options) {
+      let lastArgs,
+        lastThis,
+        maxWait,
+        result,
+        timerId,
+        lastCallTime
+    
+      let lastInvokeTime = 0
+      let leading = false
+      let maxing = false
+      let trailing = true
+    
+      if (typeof func != 'function') {
+        throw new TypeError('Expected a function')
+      }
+      wait = +wait || 0
+      if (options) {
+        leading = !!options.leading
+        maxing = 'maxWait' in options
+        maxWait = maxing ? Math.max(+options.maxWait || 0, wait) : maxWait
+        trailing = 'trailing' in options ? !!options.trailing : trailing
+      }
+    
+      function invokeFunc(time) {
+        const args = lastArgs
+        const thisArg = lastThis
+    
+        lastArgs = lastThis = undefined
+        lastInvokeTime = time
+        result = func.apply(thisArg, args)
+        return result
+      }
+    
+      function leadingEdge(time) {
+        // Reset any `maxWait` timer.
+        lastInvokeTime = time
+        // Start the timer for the trailing edge.
+        timerId = setTimeout(timerExpired, wait)
+        // Invoke the leading edge.
+        return leading ? invokeFunc(time) : result
+      }
+    
+      function remainingWait(time) {
+        const timeSinceLastCall = time - lastCallTime
+        const timeSinceLastInvoke = time - lastInvokeTime
+        const timeWaiting = wait - timeSinceLastCall
+    
+        return maxing
+          ? Math.min(timeWaiting, maxWait - timeSinceLastInvoke)
+          : timeWaiting
+      }
+    
+      function shouldInvoke(time) {
+        const timeSinceLastCall = time - lastCallTime
+        const timeSinceLastInvoke = time - lastInvokeTime
+    
+        // Either this is the first call, activity has stopped and we're at the
+        // trailing edge, the system time has gone backwards and we're treating
+        // it as the trailing edge, or we've hit the `maxWait` limit.
+        return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
+          (timeSinceLastCall < 0) || (maxing && timeSinceLastInvoke >= maxWait))
+      }
+    
+      function timerExpired() {
+        const time = Date.now()
+        if (shouldInvoke(time)) {
+          return trailingEdge(time)
+        }
+        // Restart the timer.
+        timerId = setTimeout(timerExpired, remainingWait(time))
+      }
+    
+      function trailingEdge(time) {
+        timerId = undefined
+    
+        // Only invoke if we have `lastArgs` which means `func` has been
+        // debounced at least once.
+        if (trailing && lastArgs) {
+          return invokeFunc(time)
+        }
+        lastArgs = lastThis = undefined
+        return result
+      }
+    
+      function cancel() {
+        if (timerId !== undefined) {
+          clearTimeout(timerId)
+        }
+        lastInvokeTime = 0
+        lastArgs = lastCallTime = lastThis = timerId = undefined
+      }
+    
+      function flush() {
+        return timerId === undefined ? result : trailingEdge(Date.now())
+      }
+    
+      function pending() {
+        return timerId !== undefined
+      }
+    
+      function debounced(...args) {
+        const time = Date.now()
+        const isInvoking = shouldInvoke(time)
+    
+        lastArgs = args
+        lastThis = this
+        lastCallTime = time
+    
+        if (isInvoking) {
+          if (timerId === undefined) {
+            return leadingEdge(lastCallTime)
+          }
+          if (maxing) {
+            // Handle invocations in a tight loop.
+            timerId = setTimeout(timerExpired, wait)
+            return invokeFunc(lastCallTime)
+          }
+        }
+        if (timerId === undefined) {
+          timerId = setTimeout(timerExpired, wait)
+        }
+        return result
+      }
+      debounced.cancel = cancel
+      debounced.flush = flush
+      debounced.pending = pending
+      return debounced
+    }
 
-        let later = function () {
-          timeout = null;
-          if (!immediate) func.apply(context, args);
-        };
+    throttle(func, wait, options) {
+      let leading = true
+      let trailing = true
 
-        let callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-
-        if (callNow) func.apply(context, args);
-      };
+      if (typeof func != 'function') {
+        throw new TypeError('Expected a function');
+      }
+      if (options) {
+        leading = 'leading' in options ? !!options.leading : leading
+        trailing = 'trailing' in options ? !!options.trailing : trailing
+      }
+      return this.debounce(func, wait, {
+        'leading': leading,
+        'maxWait': wait,
+        'trailing': trailing
+      })
     }
   }
 
