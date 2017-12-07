@@ -1,6 +1,6 @@
 /*
 Floorplan Fully Kiosk for Home Assistant
-Version: 1.0.7.49
+Version: 1.0.7.50
 By Petar Kozul
 https://github.com/pkozul/ha-floorplan
 */
@@ -14,16 +14,16 @@ https://github.com/pkozul/ha-floorplan
 
   class FullyKiosk {
     constructor(floorplan) {
-      this.version = '1.0.7.49';
+      this.version = '1.0.7.50';
 
       this.floorplan = floorplan;
       this.authToken = (window.localStorage && window.localStorage.authToken) ? window.localStorage.authToken : '';
 
       this.fullyInfo = {};
       this.fullyState = {};
-      this.iBeacons = {};
+      this.beacons = {};
 
-      this.onIBeaconHandlers = {};
+      this.onBeaconHandlers = {};
     }
 
     /***************************************************************************************************************************/
@@ -148,7 +148,7 @@ https://github.com/pkozul/ha-floorplan
       window.addEventListener('fully.onMovement', this.onMovement.bind(this));
 
       if (this.fullyInfo.locationName) {
-        this.logInfo('KIOSK', 'Listening for iBeacon messages');
+        this.logInfo('KIOSK', 'Listening for beacon messages');
         window.addEventListener('fully.onIBeacon', this.onIBeacon.bind(this));
       }
 
@@ -249,28 +249,28 @@ https://github.com/pkozul/ha-floorplan
 
     onIBeacon(e) {
       let uuid = e.detail.uuid;
-      let throttledFunc = this.onIBeaconHandlers[uuid];
+      let throttledFunc = this.onBeaconHandlers[uuid];
       if (!throttledFunc) {
         throttledFunc = this.throttle(this.onIBeaconThrottled, 10000).bind(this);
-        this.onIBeaconHandlers[uuid]  = throttledFunc;
+        this.onBeaconHandlers[uuid] = throttledFunc;
       }
 
       return throttledFunc(e);
     }
-      
+
     onIBeaconThrottled(e) {
-      let iBeacon = e.detail;
+      let beacon = e.detail;
 
-      this.logDebug('FULLY_KIOSK', `Received iBeacon message (${JSON.stringify(iBeacon)})`);
+      this.logDebug('FULLY_KIOSK', `Received beacon message (${JSON.stringify(beacon)})`);
 
-      let iBeaconId = iBeacon.uuid;
-      iBeaconId += (iBeacon.major ? `_${iBeacon.major}` : '');
-      iBeaconId += (iBeacon.minor ? `_${iBeacon.minor}` : '');
+      let beaconId = beacon.uuid;
+      beaconId += (beacon.major ? `_${beacon.major}` : '');
+      beaconId += (beacon.minor ? `_${beacon.minor}` : '');
 
-      this.iBeacons[iBeaconId] = iBeacon;
+      this.beacons[beaconId] = beacon;
 
       this.sendMotionState();
-      this.sendIBeaconState(iBeacon);
+      this.sendBeaconState(beacon);
     }
 
     /***************************************************************************************************************************/
@@ -354,7 +354,7 @@ https://github.com/pkozul/ha-floorplan
       this.PostToHomeAssistant(`/api/fully_kiosk/media_player/${this.fullyInfo.mediaPlayerEntityId}`, this.newPayload(state));
     }
 
-    sendIBeaconState(iBeacon) {
+    sendBeaconState(beacon) {
       if (!this.fullyInfo.motionBinarySensorEntityId) {
         return;
       }
@@ -363,8 +363,8 @@ https://github.com/pkozul/ha-floorplan
       let payload = {
         name: this.fullyInfo.locationName,
         address: this.fullyInfo.macAddress,
-        device: iBeacon.uuid,
-        beaconUUID: iBeacon.uuid,
+        device: beacon.uuid,
+        beaconUUID: beacon.uuid,
         latitude: this.position ? this.position.coords.latitude : undefined,
         longitude: this.position ? this.position.coords.longitude : undefined,
         entry: 1,
@@ -375,16 +375,16 @@ https://github.com/pkozul/ha-floorplan
       /*
       let payload = {
         mac: undefined,
-        dev_id: iBeacon.uuid.replace(/-/g, '_'),
+        dev_id: beacon.uuid.replace(/-/g, '_'),
         host_name: undefined,
         location_name: this.fullyInfo.macAddress,
         gps: this.position ? [this.position.coords.latitude, this.position.coords.longitude] : undefined,
         gps_accuracy: undefined,
         battery: undefined,
 
-        uuid: iBeacon.uuid,
-        major: iBeacon.major,
-        minor: iBeacon.minor,
+        uuid: beacon.uuid,
+        major: beacon.major,
+        minor: beacon.minor,
       };
 
       this.PostToHomeAssistant(`/api/services/device_tracker/see`, payload);
@@ -392,12 +392,20 @@ https://github.com/pkozul/ha-floorplan
 
       /*
       let fullyId = this.fullyInfo.macAddress.replace(/[:-]/g, "_");
-      payload = { topic: `room_presence/${fullyId}`, payload: `{ \"id\": \"${iBeacon.uuid}\", \"distance\": ${iBeacon.distance} }` };
+      payload = { topic: `room_presence/${fullyId}`, payload: `{ \"id\": \"${beacon.uuid}\", \"distance\": ${beacon.distance} }` };
       this.floorplan.hass.callService('mqtt', 'publish', payload);
       */
 
-      let deviceId = iBeacon.uuid.replace(/[-_]/g, '').toUpperCase();
-      let payload = { room: this.fullyInfo.locationName, id: iBeacon.uuid, distance: iBeacon.distance };
+      let deviceId = beacon.uuid.replace(/[-_]/g, '').toUpperCase();
+
+      let payload = {
+        room: this.fullyInfo.locationName,
+        id: beacon.uuid,
+        distance: beacon.distance,
+        latitude: this.position ? this.position.coords.latitude : undefined,
+        longitude: this.position ? this.position.coords.longitude : undefined,
+      };
+
       this.PostToHomeAssistant(`/api/room_presence/${deviceId}`, payload);
     }
 
@@ -422,7 +430,7 @@ https://github.com/pkozul/ha-floorplan
           _isScreensaverOn: this.fullyState.isScreensaverOn,
           _latitude: this.position && this.position.coords.latitude,
           _longitude: this.position && this.position.coords.longitude,
-          _iBeacons: JSON.stringify(Object.keys(this.iBeacons).map(iBeaconId => this.iBeacons[iBeaconId])),
+          _beacons: JSON.stringify(Object.keys(this.beacons).map(beaconId => this.beacons[beaconId])),
         }
       };
 
@@ -621,12 +629,12 @@ https://github.com/pkozul/ha-floorplan
         result,
         timerId,
         lastCallTime
-    
+
       let lastInvokeTime = 0
       let leading = false
       let maxing = false
       let trailing = true
-    
+
       if (typeof func != 'function') {
         throw new TypeError('Expected a function')
       }
@@ -637,17 +645,17 @@ https://github.com/pkozul/ha-floorplan
         maxWait = maxing ? Math.max(+options.maxWait || 0, wait) : maxWait
         trailing = 'trailing' in options ? !!options.trailing : trailing
       }
-    
+
       function invokeFunc(time) {
         const args = lastArgs
         const thisArg = lastThis
-    
+
         lastArgs = lastThis = undefined
         lastInvokeTime = time
         result = func.apply(thisArg, args)
         return result
       }
-    
+
       function leadingEdge(time) {
         // Reset any `maxWait` timer.
         lastInvokeTime = time
@@ -656,28 +664,28 @@ https://github.com/pkozul/ha-floorplan
         // Invoke the leading edge.
         return leading ? invokeFunc(time) : result
       }
-    
+
       function remainingWait(time) {
         const timeSinceLastCall = time - lastCallTime
         const timeSinceLastInvoke = time - lastInvokeTime
         const timeWaiting = wait - timeSinceLastCall
-    
+
         return maxing
           ? Math.min(timeWaiting, maxWait - timeSinceLastInvoke)
           : timeWaiting
       }
-    
+
       function shouldInvoke(time) {
         const timeSinceLastCall = time - lastCallTime
         const timeSinceLastInvoke = time - lastInvokeTime
-    
+
         // Either this is the first call, activity has stopped and we're at the
         // trailing edge, the system time has gone backwards and we're treating
         // it as the trailing edge, or we've hit the `maxWait` limit.
         return (lastCallTime === undefined || (timeSinceLastCall >= wait) ||
           (timeSinceLastCall < 0) || (maxing && timeSinceLastInvoke >= maxWait))
       }
-    
+
       function timerExpired() {
         const time = Date.now()
         if (shouldInvoke(time)) {
@@ -686,10 +694,10 @@ https://github.com/pkozul/ha-floorplan
         // Restart the timer.
         timerId = setTimeout(timerExpired, remainingWait(time))
       }
-    
+
       function trailingEdge(time) {
         timerId = undefined
-    
+
         // Only invoke if we have `lastArgs` which means `func` has been
         // debounced at least once.
         if (trailing && lastArgs) {
@@ -698,7 +706,7 @@ https://github.com/pkozul/ha-floorplan
         lastArgs = lastThis = undefined
         return result
       }
-    
+
       function cancel() {
         if (timerId !== undefined) {
           clearTimeout(timerId)
@@ -706,23 +714,23 @@ https://github.com/pkozul/ha-floorplan
         lastInvokeTime = 0
         lastArgs = lastCallTime = lastThis = timerId = undefined
       }
-    
+
       function flush() {
         return timerId === undefined ? result : trailingEdge(Date.now())
       }
-    
+
       function pending() {
         return timerId !== undefined
       }
-    
+
       function debounced(...args) {
         const time = Date.now()
         const isInvoking = shouldInvoke(time)
-    
+
         lastArgs = args
         lastThis = this
         lastCallTime = time
-    
+
         if (isInvoking) {
           if (timerId === undefined) {
             return leadingEdge(lastCallTime)
