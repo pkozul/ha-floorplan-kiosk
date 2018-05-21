@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.8.0
+    Version: 1.0.8.1
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -79,7 +79,6 @@
 </dom-module>
 
 <script>
- //class HaFloorplan extends window.hassMixins.EventsMixin(Polymer.Element) {
   class HaFloorplan extends Polymer.Element {
     static get is() { return 'ha-floorplan'; }
 
@@ -184,6 +183,20 @@
       let log = this.root.log;
       $(log).find('ul').prepend(`<li class="error">${message}</li>`)
       $(log).css('display', 'block');
+    }
+
+    fire(type, detail, options) {
+      options = options || {};
+      detail = (detail === null || detail === undefined) ? {} : detail;
+      const event = new Event(type, {
+        bubbles: options.bubbles === undefined ? true : options.bubbles,
+        cancelable: Boolean(options.cancelable),
+        composed: options.composed === undefined ? true : options.composed
+      });
+      event.detail = detail;
+      const node = options.node || this;
+      node.dispatchEvent(event);
+      return event;
     }
   }
 
