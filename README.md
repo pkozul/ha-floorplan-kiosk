@@ -14,7 +14,7 @@ https://raw.githubusercontent.com/pkozul/ha-floorplan-kiosk/master/www/custom_ui
 3) Copy the following file to the `custom_components/media_player` folder of Home Assistant:
 
 ```
-https://raw.githubusercontent.com/pkozul/ha-floorplan-kiosk/master/custom_components/media_player/tts_floorplan_speaker.py
+https://raw.githubusercontent.com/pkozul/ha-floorplan-kiosk/master/custom_components/media_player/floorplan_speaker.py
 ```
 
 4) For each Fully Kiosk device, create a binary sensor entity:
@@ -38,10 +38,10 @@ binary_sensor:
 ```
 media_player:
 
-  - platform: tts_floorplan_speaker
+  - platform: floorplan_speaker
     name: Entry Kiosk
 
-  - platform: tts_floorplan_speaker
+  - platform: floorplan_speaker
     name: Bedroom Kiosk
 ```
 
