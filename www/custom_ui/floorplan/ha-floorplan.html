@@ -1,6 +1,6 @@
 <!--
     Floorplan for Home Assistant
-    Version: 1.0.8.2
+    Version: 1.0.8.3
     By Petar Kozul
     https://github.com/pkozul/ha-floorplan
   -->
@@ -113,7 +113,9 @@
     connectedCallback() {
       super.connectedCallback();
 
-      this.initFloorplan();
+      if (!this.floorplan) {
+        this.initFloorplan();
+      }
     }
 
     stopPropagation(e) {
