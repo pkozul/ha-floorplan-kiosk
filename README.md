@@ -2,7 +2,7 @@
 1) Update to the latest version of Floorplan (with support for Fully Kiosk) by copying the following file to the `www/custom_ui/floorplan` folder of Home Assistant:
 
 ```
-https://raw.githubusercontent.com/pkozul/ha-floorplan-kiosk/master/floorplan.yaml
+https://raw.githubusercontent.com/CCOSTAN/Home-AssistantConfig/master/config/www/custom_ui/floorplan/ha-floorplan.html
 ```
 
 2) Copy Fully Kiosk library to the `www/custom_ui/floorplan/lib` folder of Home Assistant:
