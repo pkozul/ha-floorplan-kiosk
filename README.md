@@ -1,3 +1,16 @@
+<table align="center">
+<tr>
+<td>
+<h1 align="center">
+⚠️ Please migrate to <a href="https://github.com/ExperienceLovelace/ha-floorplan"><b>ha-floorplan</b></a> ⚠️ 
+</h1>
+<p align="center">
+ha-floorplan has been replaced with <a href="https://github.com/ExperienceLovelace/ha-floorplan"><b>ha-floorplan</b></a>.<br><br>Please check out the new solution, and let us know what you think.<br><br>
+</p>
+</td>
+</tr>
+</table>
+
 # ha-floorplan-kiosk
 1) Update to the latest version of Floorplan (with support for Fully Kiosk) by copying the following file to the `www/custom_ui/floorplan` folder of Home Assistant:
 
